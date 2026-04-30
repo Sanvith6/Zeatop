@@ -2,14 +2,15 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy import text
 
 from app.config import get_settings
-from app.db.mongo import init_mongo, mongo_client
-from app.db.postgres import engine, init_postgres
+from app.db.mongo import get_mongo_db, init_mongo, mongo_client
+from app.db.postgres import AsyncSessionLocal, engine, init_postgres
 from app.db.redis import init_redis, redis_client
 from app.routers.signals import limiter, router as signals_router
 from app.routers.workitems import router as workitems_router
@@ -55,6 +56,33 @@ app.include_router(workitems_router)
 @app.get("/health")
 async def health() -> dict[str, int | str]:
     return {"status": "ok", "uptime": metrics_state.uptime_seconds()}
+
+
+@app.get("/ready")
+async def readiness() -> dict[str, int | str | dict[str, str]]:
+    checks: dict[str, str] = {}
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+        checks["postgres"] = "ok"
+
+        await get_mongo_db().command("ping")
+        checks["mongo"] = "ok"
+
+        await redis_client.ping()
+        checks["redis"] = "ok"
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"status": "not_ready", "checks": checks, "error": str(exc)},
+        ) from exc
+
+    return {
+        "status": "ready",
+        "uptime": metrics_state.uptime_seconds(),
+        "queue_depth": signal_queue.qsize(),
+        "dependencies": checks,
+    }
 
 
 @app.get("/metrics")
