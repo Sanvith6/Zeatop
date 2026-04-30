@@ -1,0 +1,62 @@
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Response
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+from app.config import get_settings
+from app.db.mongo import init_mongo, mongo_client
+from app.db.postgres import engine, init_postgres
+from app.db.redis import init_redis, redis_client
+from app.routers.signals import limiter, router as signals_router
+from app.routers.workitems import router as workitems_router
+from app.services.ingestion import prometheus_metrics, worker_loop
+from app.services.metrics import metrics_logger, metrics_state
+from app.services.queue import signal_queue
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_postgres()
+    await init_mongo()
+    await init_redis()
+    worker = asyncio.create_task(worker_loop())
+    metrics_task = asyncio.create_task(metrics_logger(signal_queue))
+    try:
+        yield
+    finally:
+        for task in (worker, metrics_task):
+            task.cancel()
+        await engine.dispose()
+        mongo_client.close()
+        await redis_client.aclose()
+
+
+app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.include_router(signals_router)
+app.include_router(workitems_router)
+
+
+@app.get("/health")
+async def health() -> dict[str, int | str]:
+    return {"status": "ok", "uptime": metrics_state.uptime_seconds()}
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    return Response(content=await prometheus_metrics(), media_type="text/plain; version=0.0.4")
