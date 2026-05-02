@@ -53,7 +53,9 @@ class SignalIn(BaseModel):
 
 
 class SignalAccepted(BaseModel):
+    """Response returned on successful signal ingestion."""
     status: str
+    event_id: str
 
 
 class TransitionRequest(BaseModel):

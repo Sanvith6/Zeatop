@@ -12,11 +12,12 @@ from app.config import get_settings
 from app.db.mongo import get_mongo_db, init_mongo, mongo_client
 from app.db.postgres import AsyncSessionLocal, engine, init_postgres
 from app.db.redis import init_redis, redis_client
+from app.routers.auth import router as auth_router
 from app.routers.signals import limiter, router as signals_router
 from app.routers.workitems import router as workitems_router
-from app.services.ingestion import prometheus_metrics, worker_loop
+from app.services.ingestion import prometheus_metrics
 from app.services.metrics import metrics_logger, metrics_state
-from app.services.queue import signal_queue
+from app.services.queue import queue_depth
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 settings = get_settings()
@@ -27,13 +28,11 @@ async def lifespan(app: FastAPI):
     await init_postgres()
     await init_mongo()
     await init_redis()
-    worker = asyncio.create_task(worker_loop())
-    metrics_task = asyncio.create_task(metrics_logger(signal_queue))
+    metrics_task = asyncio.create_task(metrics_logger())
     try:
         yield
     finally:
-        for task in (worker, metrics_task):
-            task.cancel()
+        metrics_task.cancel()
         await engine.dispose()
         mongo_client.close()
         await redis_client.aclose()
@@ -51,6 +50,7 @@ app.add_middleware(
 )
 app.include_router(signals_router)
 app.include_router(workitems_router)
+app.include_router(auth_router)
 
 
 @app.get("/health")
@@ -80,11 +80,17 @@ async def readiness() -> dict[str, int | str | dict[str, str]]:
     return {
         "status": "ready",
         "uptime": metrics_state.uptime_seconds(),
-        "queue_depth": signal_queue.qsize(),
+        "queue_depth": await queue_depth(),
         "dependencies": checks,
     }
 
 
 @app.get("/metrics")
 async def metrics() -> Response:
-    return Response(content=await prometheus_metrics(), media_type="text/plain; version=0.0.4")
+    content, media_type = await prometheus_metrics()
+    return Response(content=content, media_type=media_type)
+
+@app.post("/mock-alert")
+async def mock_alert(payload: dict):
+    logging.getLogger("alerts").warning("RECEIVED MOCK ALERT: %s", payload)
+    return {"status": "alert_received"}

@@ -1,6 +1,9 @@
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:17-alpine
+    # WHY pinned to 17-alpine: Prevents breaking changes when Docker Hub
+    # advances 'latest' to a new major version with incompatible on-disk format.
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ims
       POSTGRES_PASSWORD: ims_password
@@ -16,7 +19,10 @@ services:
       retries: 10
 
   mongo:
-    image: mongo:latest
+    image: mongo:7-jammy
+    # WHY pinned to 7-jammy: Avoids surprise major version upgrades that
+    # could change wire protocol or storage engine behavior.
+    restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
@@ -28,7 +34,15 @@ services:
       retries: 10
 
   redis:
-    image: redis:latest
+    image: redis:7-alpine
+    # WHY --appendonly yes: Enables AOF (Append-Only File) persistence.
+    # Every write is appended to disk, so queued signals survive Redis restarts.
+    # Without AOF, a restart would lose all queued but unprocessed signals.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    # WHY noeviction: The queue must never silently drop messages. If Redis
+    # runs out of memory, it should reject new writes (which triggers our
+    # backpressure 503 response) rather than evicting queued signals.
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
@@ -43,15 +57,33 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    container_name: backend
+    restart: unless-stopped
     environment:
       POSTGRES_DSN: postgresql+asyncpg://ims:ims_password@postgres:5432/ims
       MONGO_DSN: mongodb://mongo:27017
       MONGO_DB: ims
       REDIS_URL: redis://redis:6379/0
-      QUEUE_MAX_SIZE: 10000
-      RATE_LIMIT: 500/second
+      QUEUE_MAX_SIZE: "10000"
+      REDIS_SIGNAL_QUEUE: signals:queue
+      REDIS_PROCESSING_QUEUE: signals:processing
+      WORKER_CONCURRENCY: "4"
+      RATE_LIMIT: "10000/second"
       JWT_SECRET: local-compose-secret
-      CORS_ORIGINS: http://localhost:3000,http://frontend:3000
+      JWT_EXPIRE_MINUTES: "60"
+      DEMO_USERNAME: sre-intern
+      DEMO_PASSWORD: zeotap-local
+      CORS_ORIGINS: http://localhost:3001,http://frontend:3000
+      # Circuit breaker settings
+      CB_FAILURE_THRESHOLD: "5"
+      CB_RECOVERY_TIMEOUT: "30"
+      CB_HALF_OPEN_MAX_CALLS: "2"
+      # Database timeout
+      DB_CALL_TIMEOUT: "5"
+      # Backpressure thresholds
+      QUEUE_WARN_THRESHOLD: "0.5"
+      QUEUE_CRITICAL_THRESHOLD: "0.8"
+      ADAPTIVE_THROTTLE_THRESHOLD: "0.7"
     ports:
       - "8000:8000"
     depends_on:
@@ -67,17 +99,84 @@ services:
       timeout: 5s
       retries: 10
 
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python worker.py
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    environment:
+      POSTGRES_DSN: postgresql+asyncpg://ims:ims_password@postgres:5432/ims
+      MONGO_DSN: mongodb://mongo:27017
+      MONGO_DB: ims
+      REDIS_URL: redis://redis:6379/0
+      QUEUE_MAX_SIZE: "10000"
+      REDIS_SIGNAL_QUEUE: signals:queue
+      REDIS_PROCESSING_QUEUE: signals:processing
+      WORKER_CONCURRENCY: "4"
+      RATE_LIMIT: "10000/second"
+      JWT_SECRET: local-compose-secret
+      JWT_EXPIRE_MINUTES: "60"
+      CORS_ORIGINS: http://localhost:3001,http://frontend:3000
+      CB_FAILURE_THRESHOLD: "5"
+      CB_RECOVERY_TIMEOUT: "30"
+      DB_CALL_TIMEOUT: "5"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3001:3000"
     depends_on:
       backend:
         condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=24h"
+    ports:
+      - "9090:9090"
+    depends_on:
+      - backend
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3002:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/provisioning/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
 
 volumes:
   postgres_data:
   mongo_data:
   redis_data:
+    # WHY persistent volume for Redis: Combined with AOF persistence,
+    # this ensures queued signals survive Docker restarts. Without this
+    # volume, a container restart would lose the AOF file and all queued data.
+  prometheus_data:
+  grafana_data:

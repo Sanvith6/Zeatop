@@ -1,11 +1,12 @@
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.models.schemas import RCARequest, RCAResponse, TransitionRequest, WorkItemDetailResponse, WorkItemResponse
+from app.security import require_auth
 from app.services.workitems import get_workitem_detail, list_workitems, submit_rca, transition_workitem
 
-router = APIRouter(prefix="/api/workitems", tags=["workitems"])
+router = APIRouter(prefix="/api/workitems", tags=["workitems"], dependencies=[Depends(require_auth)])
 
 
 @router.get("", response_model=list[WorkItemResponse])

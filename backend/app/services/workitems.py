@@ -114,6 +114,8 @@ async def submit_rca(work_item_id: uuid.UUID, payload: RCARequest) -> dict[str, 
                 item = result.scalar_one_or_none()
                 if item is None:
                     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work item not found")
+                if item.status == "CLOSED":
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot submit RCA for a closed work item")
                 incident_start = payload.incident_start.astimezone(timezone.utc).replace(tzinfo=None)
                 incident_end = payload.incident_end.astimezone(timezone.utc).replace(tzinfo=None)
                 mttr_minutes = (incident_end - incident_start).total_seconds() / 60
@@ -127,12 +129,8 @@ async def submit_rca(work_item_id: uuid.UUID, payload: RCARequest) -> dict[str, 
                 )
                 session.add(rca)
                 await session.flush()
-                previous = item.status
                 item.rca_id = rca.id
                 item.mttr_minutes = mttr_minutes
-                if item.status != "RESOLVED":
-                    item.status = "RESOLVED"
-                    session.add(WorkItemStatusHistory(work_item_id=item.id, from_status=previous, to_status="RESOLVED"))
                 item.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
             result_payload = {
                 "id": str(rca.id),

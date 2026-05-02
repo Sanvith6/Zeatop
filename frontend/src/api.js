@@ -1,8 +1,34 @@
+const AUTH_STORAGE_KEY = "imsAccessToken";
+const DEMO_USERNAME = import.meta.env.VITE_DEMO_USERNAME || "sre-intern";
+const DEMO_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD || "zeotap-local";
+
+async function getAccessToken() {
+  const cached = sessionStorage.getItem(AUTH_STORAGE_KEY);
+  if (cached) {
+    return cached;
+  }
+  const response = await fetch("/api/auth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: DEMO_USERNAME, password: DEMO_PASSWORD })
+  });
+  if (!response.ok) {
+    throw new Error("Unable to authenticate dashboard session");
+  }
+  const body = await response.json();
+  sessionStorage.setItem(AUTH_STORAGE_KEY, body.access_token);
+  return body.access_token;
+}
+
 export async function apiFetch(path, options = {}) {
+  const token = await getAccessToken();
   const response = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(options.headers || {}) },
     ...options
   });
+  if (response.status === 401) {
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  }
   if (!response.ok) {
     let message = response.statusText;
     try {

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres import Base
@@ -24,6 +24,10 @@ class WorkItem(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
     rca_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("rca.id"), nullable=True)
     mttr_minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    __table_args__ = (
+        Index("uq_active_work_item_component", "component_id", unique=True, postgresql_where=(status != "CLOSED")),
+    )
 
     rca: Mapped["RCA | None"] = relationship("RCA", foreign_keys=[rca_id], post_update=True)
     history: Mapped[list["WorkItemStatusHistory"]] = relationship(
