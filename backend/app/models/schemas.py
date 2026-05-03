@@ -114,3 +114,9 @@ class WorkItemDetailResponse(WorkItemResponse):
     signals: list[dict[str, Any]]
     timeline: list[StatusHistoryResponse]
     rca: RCAResponse | None = None
+
+
+class AISuggestionResponse(BaseModel):
+    root_cause_category: RootCauseCategory
+    fix_applied: str
+    prevention_steps: str

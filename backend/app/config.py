@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     demo_username: str = "sre-intern"
     demo_password: str = "zeotap-local"
     cors_origins: str = "http://localhost:3000,http://frontend:3000"
+    groq_api_key: str = ""
 
     # Circuit breaker settings — tune based on dependency SLAs
     cb_failure_threshold: int = 5

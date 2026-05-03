@@ -12,6 +12,7 @@ from app.db.postgres import AsyncSessionLocal, retry_postgres_write
 from app.db.redis import redis_client
 from app.models.db_models import RCA, WorkItem, WorkItemStatusHistory
 from app.models.schemas import RCARequest, WorkItemResponse
+from app.services.ai_rca import get_ai_rca_suggestion
 from app.services.state_machine import InvalidTransitionError, WorkItemStateMachine
 
 
@@ -133,7 +134,8 @@ async def submit_rca(work_item_id: uuid.UUID, payload: RCARequest) -> dict[str, 
                     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot submit RCA for a closed work item")
                 incident_start = payload.incident_start.astimezone(timezone.utc).replace(tzinfo=None)
                 incident_end = payload.incident_end.astimezone(timezone.utc).replace(tzinfo=None)
-                mttr_minutes = (incident_end - incident_start).total_seconds() / 60
+                # Requirement 3.3: MTTR based on start_time (first signal/creation) and end_time (RCA submission)
+                mttr_minutes = (incident_end - item.created_at).total_seconds() / 60
                 rca = RCA(
                     work_item_id=item.id,
                     incident_start=incident_start,
@@ -169,3 +171,13 @@ async def submit_rca(work_item_id: uuid.UUID, payload: RCARequest) -> dict[str, 
         return result_payload
 
     return await retry_postgres_write(operation)
+
+
+async def suggest_ai_rca(work_item_id: uuid.UUID) -> dict[str, Any]:
+    detail = await get_workitem_detail(work_item_id)
+    return await get_ai_rca_suggestion(
+        component_id=detail["component_id"],
+        component_type=detail["component_type"],
+        severity=detail["severity"],
+        signals=detail["signals"]
+    )

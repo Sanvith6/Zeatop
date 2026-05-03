@@ -1,7 +1,7 @@
-import { ArrowLeft, Wand2 } from "lucide-react";
+import { ArrowLeft, Loader2, Wand2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { getWorkItem, submitRCA } from "../api.js";
+import { getWorkItem, submitRCA, suggestAI_RCA } from "../api.js";
 
 const categories = ["Infrastructure", "Code Deployment", "Configuration Change", "External Dependency", "Unknown"];
 
@@ -18,6 +18,7 @@ export default function RCAForm() {
   });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [isSuggesting, setIsSuggesting] = useState(false);
 
   useEffect(() => {
     getWorkItem(id).then(setIncident).catch((err) => setError(err.message));
@@ -27,14 +28,24 @@ export default function RCAForm() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
-  function suggestRCA() {
-    const signalText = incident?.signals?.[0]?.error_message || "Repeated failure signals";
-    setForm((current) => ({
-      ...current,
-      root_cause_category: current.root_cause_category || "Unknown",
-      fix_applied: current.fix_applied || `Mitigated incident after reviewing signal pattern: ${signalText}`,
-      prevention_steps: current.prevention_steps || "Tune alert thresholds, add runbook automation, and review component capacity limits."
-    }));
+  async function suggestRCA() {
+    setIsSuggesting(true);
+    setError("");
+    try {
+      const suggestion = await suggestAI_RCA(id);
+      setForm((current) => ({
+        ...current,
+        root_cause_category: suggestion.root_cause_category,
+        fix_applied: suggestion.fix_applied,
+        prevention_steps: suggestion.prevention_steps
+      }));
+      setMessage("AI Suggestion applied successfully!");
+      setTimeout(() => setMessage(""), 3000);
+    } catch (err) {
+      setError(`AI Suggestion failed: ${err.message}`);
+    } finally {
+      setIsSuggesting(false);
+    }
   }
 
   async function onSubmit(event) {
@@ -67,8 +78,9 @@ export default function RCAForm() {
           <h1>Root Cause Analysis</h1>
           <p>{incident?.component_id || id}</p>
         </div>
-        <button type="button" className="icon-text-button" onClick={suggestRCA} disabled={!incident}>
-          <Wand2 size={16} /> Suggest
+        <button type="button" className="icon-text-button" onClick={suggestRCA} disabled={!incident || isSuggesting}>
+          {isSuggesting ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />} 
+          {isSuggesting ? "Analyzing..." : "Suggest"}
         </button>
       </div>
       {error && <div className="error-banner">{error}</div>}

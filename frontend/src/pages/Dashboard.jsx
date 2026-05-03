@@ -1,12 +1,13 @@
-import { Activity, AlertTriangle, Clock, RefreshCw, Signal, ArrowUpDown } from "lucide-react";
+import { Activity, AlertTriangle, Clock, RefreshCw, Signal, ArrowUpDown, BarChart3 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getWorkItems } from "../api.js";
+import { getWorkItems, getSignalTimeseries } from "../api.js";
 import SeverityPill from "../components/SeverityPill.jsx";
 import StatusBadge from "../components/StatusBadge.jsx";
 
 export default function Dashboard() {
   const [items, setItems] = useState([]);
+  const [timeseries, setTimeseries] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [sortAsc, setSortAsc] = useState(true);
@@ -15,7 +16,12 @@ export default function Dashboard() {
   async function loadItems() {
     try {
       setError("");
-      setItems(await getWorkItems());
+      const [itemsData, tsData] = await Promise.all([
+        getWorkItems(),
+        getSignalTimeseries(30) // last 30 minutes
+      ]);
+      setItems(itemsData);
+      setTimeseries(tsData);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -136,6 +142,41 @@ export default function Dashboard() {
             <span className="stat-label">Avg MTTR</span>
             <strong className="stat-value">{avgMttr ? `${avgMttr} min` : "—"}</strong>
           </div>
+        </div>
+      </div>
+
+      {/* Throughput Chart */}
+      <div className="chart-container">
+        <div className="chart-header">
+          <div className="chart-title">
+            <BarChart3 size={18} /> System Throughput (Signals/min)
+          </div>
+          <div className="chart-subtitle">Last 30 minutes</div>
+        </div>
+        <div className="chart-body">
+          {timeseries.length === 0 ? (
+            <div className="grid-row-empty" style={{ width: "100%" }}>Waiting for ingestion data...</div>
+          ) : (
+            timeseries.map((d, i) => {
+              const maxVal = Math.max(...timeseries.map(t => t.count), 1);
+              const height = (d.count / maxVal) * 100;
+              return (
+                <div key={d.time} className="chart-bar-wrapper">
+                  <div 
+                    className="chart-bar" 
+                    style={{ height: `${height}%` }}
+                  ></div>
+                  <div className="chart-bar-tooltip">
+                    {d.count} signals at {new Date(d.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        <div className="chart-labels">
+          <span className="chart-label">{timeseries.length > 0 ? new Date(timeseries[0].time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}</span>
+          <span className="chart-label">{timeseries.length > 0 ? new Date(timeseries[timeseries.length - 1].time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}</span>
         </div>
       </div>
 

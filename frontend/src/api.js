@@ -48,3 +48,9 @@ export const transitionWorkItem = (id, newState) =>
   apiFetch(`/api/workitems/${id}/transition`, { method: "PATCH", body: JSON.stringify({ new_state: newState }) });
 export const submitRCA = (id, payload) =>
   apiFetch(`/api/workitems/${id}/rca`, { method: "POST", body: JSON.stringify(payload) });
+export const suggestAI_RCA = (id) =>
+  apiFetch(`/api/workitems/${id}/suggest-rca`, { method: "POST" });
+
+export const getSignalTimeseries = (minutes = 60) => apiFetch(`/api/analytics/signals/timeseries?minutes=${minutes}`);
+export const getIncidentDistribution = () => apiFetch("/api/analytics/incidents/distribution");
+export const getMTTRHistory = () => apiFetch("/api/analytics/mttr/history");

@@ -2,9 +2,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.models.schemas import RCARequest, RCAResponse, TransitionRequest, WorkItemDetailResponse, WorkItemResponse
+from app.models.schemas import AISuggestionResponse, RCARequest, RCAResponse, TransitionRequest, WorkItemDetailResponse, WorkItemResponse
 from app.security import require_auth
-from app.services.workitems import get_workitem_detail, list_workitems, submit_rca, transition_workitem
+from app.services.workitems import get_workitem_detail, list_workitems, submit_rca, suggest_ai_rca, transition_workitem
 
 router = APIRouter(prefix="/api/workitems", tags=["workitems"], dependencies=[Depends(require_auth)])
 
@@ -27,3 +27,8 @@ async def transition(work_item_id: UUID, payload: TransitionRequest) -> dict:
 @router.post("/{work_item_id}/rca", response_model=RCAResponse)
 async def create_rca(work_item_id: UUID, payload: RCARequest) -> dict:
     return await submit_rca(work_item_id, payload)
+
+
+@router.post("/{work_item_id}/suggest-rca", response_model=AISuggestionResponse)
+async def suggest_rca(work_item_id: UUID) -> dict:
+    return await suggest_ai_rca(work_item_id)

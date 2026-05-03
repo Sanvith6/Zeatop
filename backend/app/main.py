@@ -15,6 +15,7 @@ from app.db.redis import init_redis, redis_client
 from app.routers.auth import router as auth_router
 from app.routers.signals import limiter, router as signals_router
 from app.routers.workitems import router as workitems_router
+from app.routers.analytics import router as analytics_router
 from app.services.ingestion import prometheus_metrics
 from app.services.metrics import metrics_logger, metrics_state
 from app.services.queue import queue_depth
@@ -53,6 +54,7 @@ app.add_middleware(
 )
 app.include_router(signals_router)
 app.include_router(workitems_router)
+app.include_router(analytics_router)
 app.include_router(auth_router)
 
 

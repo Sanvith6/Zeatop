@@ -87,6 +87,11 @@ IMS_DB_WRITE_LATENCY = Histogram(
     ["db_type"],
     buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0],
 )
+IMS_AI_RCA_REQUESTS_TOTAL = Counter(
+    "ims_ai_rca_requests_total",
+    "Total number of AI-powered RCA suggestions requested",
+    ["status"],
+)
 
 
 @dataclass
@@ -179,7 +184,7 @@ async def metrics_logger() -> None:
         IMS_QUEUE_DEPTH.set(depth)
         
         # Calculate and set processing rate
-        rate = metrics_state.ingestion_rate() # This function also updates internal state
+        rate = metrics_state.ingestion_rate()
         IMS_PROCESSING_RATE.set(rate)
 
         # Update circuit breaker state gauges
@@ -206,7 +211,7 @@ async def metrics_logger() -> None:
             "[METRICS] Rate: %.0f sig/s | Queue: %d | Active incidents: %d | "
             "Avg MTTR: %.0f min | Latency p50=%.3fs p95=%.3fs p99=%.3fs | "
             "Processed: %d | Failed: %d",
-            metrics_state.ingestion_rate(),
+            rate,
             depth,
             active_incidents,
             avg_mttr,

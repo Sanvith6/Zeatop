@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 from dataclasses import dataclass, field
@@ -323,6 +324,7 @@ async def create_work_item(signal: SignalIn, signal_count: int, worker_id: int =
         "type": "INCIDENT_CREATED",
         "work_item_id": str(res)
     }))
+    logger.info("  -> [INCIDENT_CREATED] WorkItem %s for %s", res, signal.component_id)
     
     return res
 
