@@ -1,32 +1,13 @@
 """
 Queue service — Redis-backed durable ingestion boundary.
 
-WHY REDIS LIST AS QUEUE:
-We use Redis LPUSH/BRPOPLPUSH instead of a dedicated message broker because:
-  1. Redis is already in the stack (cache + debounce), avoiding another dependency
-  2. Sub-millisecond latency for push/pop operations
-  3. BRPOPLPUSH provides crash-safe dequeue (see below)
-  4. AOF persistence (enabled in docker-compose) survives Redis restarts
+Uses Redis LPUSH / BRPOPLPUSH for low-latency, crash-safe buffering. 
+The BRPOPLPUSH pattern ensures at-least-once delivery by atomically moving 
+messages to a processing list before consumption. Stranded messages from 
+worker crashes are recovered on startup.
 
-WHY BRPOPLPUSH (not simple BRPOP):
-  BRPOPLPUSH atomically pops from the main queue AND pushes to a processing list.
-  If a worker crashes mid-processing, the message remains in the processing list.
-  On restart, recover_processing_queue() moves all stranded messages back to the
-  main queue. This gives us AT-LEAST-ONCE delivery semantics.
-
-  Flow:
-    signals:queue  →  BRPOPLPUSH  →  signals:processing
-    success        →  LREM from signals:processing (ack)
-    crash          →  item stays in signals:processing → recovered on restart
-
-DELIVERY GUARANTEE:
-  At-least-once. Idempotency in the worker (MongoDB upsert on queue_id) ensures
-  that redelivered messages don't create duplicate work items.
-
-LIMITATIONS:
-  Redis is single-threaded. At ~50k ops/sec it becomes CPU-bound. For sustained
-  10k+ signals/sec, Redis should be replaced with Apache Kafka which provides
-  partitioned consumption and disk-backed persistence.
+Limitations: Redis is single-threaded (~50k ops/sec). For extreme throughput 
+(100k+), migration to a partitioned broker like Kafka is recommended.
 """
 
 import logging
@@ -71,15 +52,16 @@ async def enqueue_signal(signal: SignalIn) -> str:
             depth, settings.queue_max_size, (depth / settings.queue_max_size) * 100,
         )
 
+    import time
     event_id = str(uuid.uuid4())
     payload = signal.model_dump_json()
-    envelope = f"{event_id}|{payload}"
+    envelope = f"{event_id}|{time.time()}|{payload}"
     await redis_client.lpush(settings.redis_signal_queue, envelope)
     IMS_QUEUE_DEPTH.set(depth + 1)
     return event_id
 
 
-async def dequeue_signal(timeout_seconds: int = 5) -> tuple[str, str, SignalIn] | None:
+async def dequeue_signal(timeout_seconds: int = 5) -> tuple[str, str, float, SignalIn] | None:
     """
     Block-pop a signal from the queue into the processing list.
 
@@ -95,14 +77,34 @@ async def dequeue_signal(timeout_seconds: int = 5) -> tuple[str, str, SignalIn] 
     )
     if raw is None:
         return None
-    queue_id, payload = raw.split("|", 1)
+    
+    parts = raw.split("|", 2)
+    if len(parts) == 3:
+        queue_id, enqueued_at, payload = parts
+        enqueued_at = float(enqueued_at)
+    else:
+        # Compatibility for old format messages
+        queue_id, payload = raw.split("|", 1)
+        import time
+        enqueued_at = time.time()
+        
     IMS_QUEUE_DEPTH.set(await queue_depth())
-    return raw, queue_id, SignalIn.model_validate_json(payload)
+    return raw, queue_id, enqueued_at, SignalIn.model_validate_json(payload)
 
 
 async def ack_signal(raw: str) -> None:
     """Remove a successfully processed signal from the processing list."""
     await redis_client.lrem(settings.redis_processing_queue, 1, raw)
+
+
+async def ack_signals_bulk(raw_list: list[str]) -> None:
+    """Remove multiple successfully processed signals from the processing list in one transaction."""
+    if not raw_list:
+        return
+    async with redis_client.pipeline(transaction=True) as pipe:
+        for raw in raw_list:
+            pipe.lrem(settings.redis_processing_queue, 1, raw)
+        await pipe.execute()
 
 
 async def recover_processing_queue() -> None:

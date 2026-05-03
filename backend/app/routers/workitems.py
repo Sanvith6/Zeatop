@@ -10,8 +10,8 @@ router = APIRouter(prefix="/api/workitems", tags=["workitems"], dependencies=[De
 
 
 @router.get("", response_model=list[WorkItemResponse])
-async def get_workitems() -> list[dict]:
-    return await list_workitems()
+async def get_workitems(status: str | None = None) -> list[dict]:
+    return await list_workitems(status=status)
 
 
 @router.get("/{work_item_id}", response_model=WorkItemDetailResponse)

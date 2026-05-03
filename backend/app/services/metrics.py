@@ -50,6 +50,10 @@ IMS_QUEUE_DEPTH = Gauge(
     "ims_queue_depth",
     "Current Redis ingestion queue depth",
 )
+IMS_PROCESSING_RATE = Gauge(
+    "ims_processing_rate_per_second",
+    "Current processing rate (signals/sec) calculated over 5s intervals",
+)
 
 # WHY HISTOGRAM (not Summary):
 # Histograms are aggregatable across instances and support percentile
@@ -71,6 +75,17 @@ IMS_CIRCUIT_BREAKER_STATE = Gauge(
     "ims_circuit_breaker_state",
     "Circuit breaker state (0=CLOSED, 1=OPEN, 2=HALF_OPEN)",
     ["dependency"],
+)
+IMS_RETRY_TOTAL = Counter(
+    "ims_retry_total",
+    "Total number of processing retries attempted",
+    ["worker_id"],
+)
+IMS_DB_WRITE_LATENCY = Histogram(
+    "ims_db_write_latency_seconds",
+    "Database write latency for Mongo and Postgres",
+    ["db_type"],
+    buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0],
 )
 
 
@@ -116,6 +131,12 @@ class MetricsState:
         self.failed_count += 1
         IMS_SIGNALS_FAILED_TOTAL.inc()
 
+    def record_retry(self, worker_id: int) -> None:
+        IMS_RETRY_TOTAL.labels(worker_id=str(worker_id)).inc()
+
+    def record_db_latency(self, db_type: str, latency: float) -> None:
+        IMS_DB_WRITE_LATENCY.labels(db_type=db_type).observe(latency)
+
     def uptime_seconds(self) -> int:
         return int(time.monotonic() - self.started_at)
 
@@ -156,6 +177,10 @@ async def metrics_logger() -> None:
         await asyncio.sleep(5)
         depth = await queue_depth()
         IMS_QUEUE_DEPTH.set(depth)
+        
+        # Calculate and set processing rate
+        rate = metrics_state.ingestion_rate() # This function also updates internal state
+        IMS_PROCESSING_RATE.set(rate)
 
         # Update circuit breaker state gauges
         try:

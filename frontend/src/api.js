@@ -42,7 +42,7 @@ export async function apiFetch(path, options = {}) {
   return response.json();
 }
 
-export const getWorkItems = () => apiFetch("/api/workitems");
+export const getWorkItems = (status) => apiFetch(`/api/workitems${status ? `?status=${status}` : ""}`);
 export const getWorkItem = (id) => apiFetch(`/api/workitems/${id}`);
 export const transitionWorkItem = (id, newState) =>
   apiFetch(`/api/workitems/${id}/transition`, { method: "PATCH", body: JSON.stringify({ new_state: newState }) });

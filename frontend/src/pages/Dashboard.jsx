@@ -10,6 +10,7 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [sortAsc, setSortAsc] = useState(true);
+  const [severityFilter, setSeverityFilter] = useState("ALL");
 
   async function loadItems() {
     try {
@@ -24,18 +25,55 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadItems();
-    const timer = setInterval(loadItems, 5000);
-    return () => clearInterval(timer);
+    
+    // Determine WebSocket URL based on current host
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsHost = window.location.hostname === "localhost" ? "localhost:8000" : window.location.host;
+    const wsUrl = `${wsProtocol}//${wsHost}/ws/incidents`;
+    
+    console.log("Connecting to WebSocket:", wsUrl);
+    const socket = new WebSocket(wsUrl);
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log("Real-time update received:", data);
+      
+      // For any incident event, refresh the list to ensure accurate state.
+      // In a more complex app, we could update the specific item in state,
+      // but reloading from the Redis-cached API is safer and still sub-100ms.
+      loadItems();
+    };
+
+    socket.onclose = () => {
+      console.warn("WebSocket closed. Falling back to polling in 5s...");
+      const timer = setTimeout(loadItems, 5000);
+      return () => clearTimeout(timer);
+    };
+
+    return () => {
+      socket.close();
+    };
   }, []);
 
   const severityRank = { P0: 0, P1: 1, P2: 2, P3: 3 };
-  const sortedItems = [...items].sort((a, b) => {
+  
+  const filteredItems = items.filter(item => 
+    severityFilter === "ALL" || item.severity === severityFilter
+  );
+
+  const sortedItems = [...filteredItems].sort((a, b) => {
     const diff = (severityRank[a.severity] ?? 99) - (severityRank[b.severity] ?? 99);
     return sortAsc ? diff : -diff;
   });
 
   const p0Count = items.filter((i) => i.severity === "P0").length;
   const totalSignals = items.reduce((sum, i) => sum + i.signal_count, 0);
+  
+  // Noise Reduction calculation
+  const noiseReduction = totalSignals > 0 
+    ? (((totalSignals - items.length) / totalSignals) * 100).toFixed(2)
+    : "0.00";
+
   const mttrItems = items.filter((i) => i.mttr_minutes);
   const avgMttr = mttrItems.length > 0
     ? (mttrItems.reduce((sum, i) => sum + i.mttr_minutes, 0) / mttrItems.length).toFixed(1)
@@ -46,11 +84,27 @@ export default function Dashboard() {
       <div className="page-header">
         <div>
           <h1>Live Incidents</h1>
-          <p>{items.length} active work items</p>
+          <p>{filteredItems.length} active work items {severityFilter !== "ALL" && `(filtered by ${severityFilter})`}</p>
         </div>
-        <button className="icon-text-button" type="button" onClick={loadItems}>
-          <RefreshCw size={16} /> Refresh
-        </button>
+        <div className="header-actions">
+          <Link to="/history" className="icon-text-button">
+            <Clock size={16} /> View History
+          </Link>
+          <select 
+            className="filter-select"
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value)}
+          >
+            <option value="ALL">All Severities</option>
+            <option value="P0">P0 - Critical</option>
+            <option value="P1">P1 - High</option>
+            <option value="P2">P2 - Medium</option>
+            <option value="P3">P3 - Low</option>
+          </select>
+          <button className="icon-text-button" type="button" onClick={loadItems}>
+            <RefreshCw size={16} /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Stats cards */}
@@ -72,8 +126,8 @@ export default function Dashboard() {
         <div className="stat-card stat-signals">
           <div className="stat-icon"><Signal size={20} /></div>
           <div className="stat-content">
-            <span className="stat-label">Total Signals</span>
-            <strong className="stat-value">{totalSignals.toLocaleString()}</strong>
+            <span className="stat-label">Noise Reduction</span>
+            <strong className="stat-value">{noiseReduction}%</strong>
           </div>
         </div>
         <div className="stat-card stat-mttr">
@@ -87,45 +141,62 @@ export default function Dashboard() {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Component</th>
-              <th>Type</th>
-              <th>
-                <button className="sort-button" type="button" onClick={() => setSortAsc((v) => !v)}>
-                  Severity <ArrowUpDown size={12} />
-                </button>
-              </th>
-              <th>Status</th>
-              <th>Signals</th>
-              <th>MTTR</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan="8">Loading incidents...</td></tr>
-            ) : sortedItems.length === 0 ? (
-              <tr><td colSpan="8">No active incidents</td></tr>
-            ) : (
-              sortedItems.map((item) => (
-                <tr key={item.id} className={`row-${item.severity.toLowerCase()}`}>
-                  <td><Link to={`/incident/${item.id}`}>{item.id.slice(0, 8)}</Link></td>
-                  <td>{item.component_id}</td>
-                  <td>{item.component_type}</td>
-                  <td><SeverityPill severity={item.severity} /></td>
-                  <td><StatusBadge status={item.status} /></td>
-                  <td>{item.signal_count}</td>
-                  <td>{item.mttr_minutes ? `${item.mttr_minutes.toFixed(1)} min` : "—"}</td>
-                  <td>{new Date(item.created_at).toLocaleString()}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="incident-grid-container">
+        <div className="grid-header">
+          <div className="grid-cell col-id">ID</div>
+          <div className="grid-cell col-comp">Component</div>
+          <div className="grid-cell col-type">Type</div>
+          <div className="grid-cell col-sev">
+            <button className="sort-button" type="button" onClick={() => setSortAsc((v) => !v)}>
+              Severity <ArrowUpDown size={12} />
+            </button>
+          </div>
+          <div className="grid-cell col-status">Status</div>
+          <div className="grid-cell col-signals">Signals</div>
+          <div className="grid-cell col-eff">Efficiency</div>
+          <div className="grid-cell col-mttr">MTTR</div>
+          <div className="grid-cell col-created">Created</div>
+        </div>
+
+        <div className="grid-body">
+          {loading ? (
+            <div className="grid-row-empty">Loading incidents...</div>
+          ) : sortedItems.length === 0 ? (
+            <div className="grid-row-empty">No active incidents</div>
+          ) : (
+            sortedItems.map((item) => (
+              <div key={item.id} className={`grid-row row-${item.severity.toLowerCase()}`}>
+                <div className="grid-cell col-id">
+                  <Link to={`/incident/${item.id}`}>{item.id.slice(0, 8)}</Link>
+                </div>
+                <div className="grid-cell col-comp">{item.component_id}</div>
+                <div className="grid-cell col-type">{item.component_type}</div>
+                <div className="grid-cell col-sev">
+                  <SeverityPill severity={item.severity} />
+                </div>
+                <div className="grid-cell col-status">
+                  <StatusBadge status={item.status} />
+                </div>
+                <div className="grid-cell col-signals">
+                  <div className="signals-badge">
+                    <Signal size={12} /> {item.signal_count}
+                  </div>
+                </div>
+                <div className="grid-cell col-eff">
+                  <div className="efficiency-cell">
+                    <strong>{item.signal_count > 1 ? (((item.signal_count - 1) / item.signal_count) * 100).toFixed(1) : "0.0"}%</strong>
+                  </div>
+                </div>
+                <div className="grid-cell col-mttr">
+                  {item.mttr_minutes ? `${item.mttr_minutes.toFixed(1)} min` : "—"}
+                </div>
+                <div className="grid-cell col-created">
+                  {new Date(item.created_at).toLocaleString()}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </section>
   );

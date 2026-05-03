@@ -23,17 +23,24 @@ def serialize_work_item(item: WorkItem) -> dict[str, Any]:
 
 
 async def invalidate_workitems_cache() -> None:
-    await redis_client.delete("dashboard:workitems")
+    await redis_client.delete("dashboard:workitems:active")
+    await redis_client.delete("dashboard:workitems:history")
 
 
-async def list_workitems() -> list[dict[str, Any]]:
-    cached = await redis_client.get("dashboard:workitems")
+async def list_workitems(status: str | None = None) -> list[dict[str, Any]]:
+    cache_key = "dashboard:workitems:history" if status == "CLOSED" else "dashboard:workitems:active"
+    cached = await redis_client.get(cache_key)
     if cached:
         return json.loads(cached)
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(WorkItem).where(WorkItem.status != "CLOSED").order_by(severity_rank, WorkItem.created_at.desc()))
+        if status == "CLOSED":
+            query = select(WorkItem).where(WorkItem.status == "CLOSED").order_by(WorkItem.updated_at.desc())
+        else:
+            query = select(WorkItem).where(WorkItem.status != "CLOSED").order_by(severity_rank, WorkItem.created_at.desc())
+        
+        result = await session.execute(query)
         items = [serialize_work_item(item) for item in result.scalars().all()]
-    await redis_client.setex("dashboard:workitems", 10, json.dumps(items))
+    await redis_client.setex(cache_key, 10, json.dumps(items))
     return items
 
 
@@ -101,6 +108,14 @@ async def transition_workitem(work_item_id: uuid.UUID, new_state: str) -> dict[s
             await session.refresh(item)
             payload = serialize_work_item(item)
         await invalidate_workitems_cache()
+        
+        # Broadcast transition via Redis Pub/Sub
+        await redis_client.publish("incidents:updates", json.dumps({
+            "type": "INCIDENT_TRANSITIONED",
+            "work_item_id": str(work_item_id),
+            "new_state": new_state
+        }))
+        
         return payload
 
     return await retry_postgres_write(operation)
@@ -144,6 +159,13 @@ async def submit_rca(work_item_id: uuid.UUID, payload: RCARequest) -> dict[str, 
                 "mttr_minutes": mttr_minutes,
             }
         await invalidate_workitems_cache()
+        
+        # Broadcast RCA submission via Redis Pub/Sub
+        await redis_client.publish("incidents:updates", json.dumps({
+            "type": "RCA_SUBMITTED",
+            "work_item_id": str(work_item_id)
+        }))
+        
         return result_payload
 
     return await retry_postgres_write(operation)

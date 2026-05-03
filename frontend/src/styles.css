@@ -127,6 +127,30 @@ button, input, select, textarea { font: inherit; }
   gap: 24px; 
 }
 
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.filter-select {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  height: 44px;
+  padding: 0 12px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.filter-select:hover {
+  border-color: var(--accent);
+  background: var(--line);
+}
+
 h1 { 
   margin: 0 0 8px; 
   font-size: 36px; 
@@ -222,7 +246,7 @@ p { margin: 0; color: var(--muted); line-height: 1.6; }
 }
 
 .icon-button { width: 44px; padding: 0; border-radius: 50%; }
-.icon-text-button { gap: 8px; }
+.icon-text-button { gap: 8px; text-decoration: none !important; }
 .icon-text-button:disabled { cursor: not-allowed; opacity: 0.4; transform: none; box-shadow: none; }
 
 .primary-button { 
@@ -270,49 +294,126 @@ p { margin: 0; color: var(--muted); line-height: 1.6; }
 .sort-button:hover { color: var(--text); }
 
 /* ======== Tables ======== */
-.table-wrap { 
-  overflow-x: auto; 
+/* ======== Senior-Grade Incident Grid System ======== */
+:root {
+  --grid-template: 100px 180px 100px 110px 140px 120px 110px 100px 1fr;
+}
+
+.incident-grid-container {
+  width: 100%;
   background: var(--panel);
   backdrop-filter: blur(12px);
   border: 1px solid var(--panel-border);
   box-shadow: var(--panel-shadow);
   border-radius: var(--radius-lg);
-  padding: 8px 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-table { width: 100%; border-collapse: collapse; min-width: 900px; }
-th, td { 
-  padding: 16px 24px; 
-  text-align: left; 
-  border-bottom: 1px solid var(--line); 
-  white-space: nowrap; 
+.grid-header {
+  display: grid;
+  grid-template-columns: var(--grid-template);
+  background: rgba(0, 0, 0, 0.02);
+  border-bottom: 2px solid var(--line);
+  padding: 0 16px;
 }
-th { 
-  font-size: 13px; 
-  color: var(--muted); 
-  text-transform: uppercase; 
+
+.grid-body {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  max-height: 800px;
+}
+
+.grid-row {
+  display: grid;
+  grid-template-columns: var(--grid-template);
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  transition: background-color 0.15s ease;
+  align-items: center;
+}
+
+.grid-row:hover {
+  background: rgba(0, 0, 0, 0.015);
+}
+
+:root[data-theme="dark"] .grid-header { background: rgba(255, 255, 255, 0.03); }
+:root[data-theme="dark"] .grid-row:hover { background: rgba(255, 255, 255, 0.02); }
+
+.grid-cell {
+  padding: 16px 12px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Header Specifics */
+.grid-header .grid-cell {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 20px 12px;
+}
+
+/* Alignment Logic */
+.col-status, .col-signals, .col-eff, .col-mttr {
+  justify-content: center;
+  text-align: center;
+}
+
+.col-id, .col-comp, .col-type, .col-sev, .col-created {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.grid-row-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* Row Styling (Criticality Indicators) */
+.grid-row.row-p0 { background: rgba(239, 68, 68, 0.04); position: relative; }
+.grid-row.row-p0::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #ef4444; }
+
+.grid-row.row-p1 { background: rgba(249, 115, 22, 0.02); position: relative; }
+.grid-row.row-p1::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #f97316; }
+
+/* Components inside cells */
+.efficiency-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.signals-badge {
+  background: rgba(139, 92, 246, 0.1);
+  color: #8b5cf6;
+  padding: 6px 12px;
+  border-radius: 8px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+:root[data-theme="dark"] .signals-badge {
+  background: rgba(167, 139, 250, 0.15);
+  color: #a78bfa;
 }
 
-tbody tr { transition: background-color 0.2s ease, transform 0.2s ease; }
-tbody tr:hover { 
-  background-color: rgba(0,0,0,0.02); 
-  transform: scale(1.002);
+.status-badge {
+  min-width: 110px;
+  justify-content: center;
 }
-:root[data-theme="dark"] tbody tr:hover { background-color: rgba(255,255,255,0.02); }
-
-td:last-child { white-space: normal; }
-tr:last-child td { border-bottom: 0; }
-
-.row-p0 { position: relative; }
-.row-p0::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #ef4444; border-radius: 0 4px 4px 0; animation: pulse 2s ease-in-out infinite; }
-.row-p1 { position: relative; }
-.row-p1::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #f97316; border-radius: 0 4px 4px 0; }
-.row-p2 { position: relative; }
-.row-p2::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #eab308; border-radius: 0 4px 4px 0; }
-.row-p3 { position: relative; }
-.row-p3::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #22c55e; border-radius: 0 4px 4px 0; }
 
 /* ======== Pills & Badges ======== */
 .severity-pill, .status-badge {
@@ -346,36 +447,85 @@ tr:last-child td { border-bottom: 0; }
 /* ======== Layout elements ======== */
 .summary-actions, .action-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 
+/* ======== Meta Grid (Incident Info) ======== */
 .meta-grid { 
   display: grid; 
-  grid-template-columns: repeat(4, minmax(0, 1fr)); 
-  gap: 16px; 
+  grid-template-columns: repeat(4, 1fr); 
+  gap: 20px; 
 }
 .meta-grid div { 
   background: var(--panel); 
   backdrop-filter: blur(12px);
   border: 1px solid var(--panel-border); 
-  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+  box-shadow: var(--panel-shadow);
   border-radius: var(--radius-md); 
-  padding: 20px; 
-  display: grid; 
-  gap: 8px; 
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 24px; 
+  display: flex;
+  flex-direction: column;
+  gap: 12px; 
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .meta-grid div:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0,0,0,0.08);
 }
 .meta-grid span { 
   color: var(--muted); 
-  font-size: 13px; 
-  font-weight: 700;
+  font-size: 11px; 
+  font-weight: 800;
   text-transform: uppercase; 
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
 }
 .meta-grid strong {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
+  color: var(--text);
+}
+
+/* ======== Signals Grid (Incident Detail) ======== */
+.signals-grid-container {
+  width: 100%;
+  background: var(--panel);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--panel-border);
+  overflow: hidden;
+  margin-top: 8px;
+}
+.signals-grid-container .grid-header {
+  --grid-template: 200px 180px 100px 120px 1fr;
+  display: grid;
+  grid-template-columns: var(--grid-template);
+  padding: 0 16px;
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom: 2px solid var(--line);
+}
+.signals-grid-container .grid-row {
+  --grid-template: 200px 180px 100px 120px 1fr;
+  display: grid;
+  grid-template-columns: var(--grid-template);
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+.signals-grid-container .grid-cell {
+  padding: 14px 12px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+}
+.signals-grid-container .truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-grid {
+  --grid-template: 100px 180px 100px 120px 140px 100px 100px 1fr;
+  display: grid;
+  grid-template-columns: var(--grid-template) !important;
+}
+
+.centered-badge {
+  justify-content: center;
+  text-align: center;
 }
 
 /* ======== Tabs ======== */

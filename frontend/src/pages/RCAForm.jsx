@@ -1,12 +1,13 @@
 import { ArrowLeft, Wand2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { getWorkItem, submitRCA } from "../api.js";
 
 const categories = ["Infrastructure", "Code Deployment", "Configuration Change", "External Dependency", "Unknown"];
 
 export default function RCAForm() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [incident, setIncident] = useState(null);
   const [form, setForm] = useState({
     incident_start: "",
@@ -50,8 +51,9 @@ export default function RCAForm() {
         incident_start: new Date(form.incident_start).toISOString(),
         incident_end: new Date(form.incident_end).toISOString()
       };
-      const response = await submitRCA(id, payload);
-      setMessage(`RCA submitted. MTTR: ${response.mttr_minutes.toFixed(1)} minutes`);
+      await submitRCA(id, payload);
+      // Redirect back to incident detail so user can see the "Close" button
+      navigate(`/incident/${id}`);
     } catch (err) {
       setError(err.message);
     }

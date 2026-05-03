@@ -1,26 +1,9 @@
 """
-Incident state machine — enforces valid lifecycle transitions.
+Incident state machine — enforces strict SRE lifecycle transitions.
 
-WHY A STATE MACHINE (not free-form status updates):
-Without enforced transitions, an operator could accidentally mark an incident
-CLOSED without investigating it, or reopen a CLOSED incident without an audit
-trail. The state machine ensures:
-
-  1. CORRECTNESS: Only valid transitions are allowed:
-       OPEN → INVESTIGATING → RESOLVED → CLOSED
-     No skipping steps, no going backwards.
-
-  2. RCA ENFORCEMENT: An incident CANNOT be closed without a complete Root Cause
-     Analysis. This is critical for SRE culture — every incident must produce
-     learnings to prevent recurrence.
-
-  3. AUDIT TRAIL: Each transition is recorded in work_item_status_history,
-     creating an immutable timeline for post-incident review.
-
-WHY NOT a simple string field:
-A string field with no validation would allow any status value and any transition.
-The state machine pattern encapsulates transition rules in one place, making them
-easy to test, audit, and extend (e.g., adding an ESCALATED state later).
+Ensures data integrity and compliance by validating state transitions 
+(OPEN -> INVESTIGATING -> RESOLVED -> CLOSED) and mandating a complete 
+Root Cause Analysis (RCA) before closure.
 """
 
 from app.models.db_models import WorkItem

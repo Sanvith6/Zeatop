@@ -85,23 +85,13 @@ def is_transient_error(exc: BaseException) -> bool:
     return isinstance(exc, (OperationalError, DBAPIError))
 
 
-async def retry_postgres_write(operation: Callable[[], Awaitable[T]], attempts: int = 3) -> T:
+async def retry_postgres_write(
+    operation: Callable[[], Awaitable[T]],
+    attempts: int = 3,
+    on_retry: Callable[[int], None] | None = None,
+) -> T:
     """
     Retry a PostgreSQL write operation with exponential backoff.
-
-    WHY RETRY WITH BACKOFF:
-    Transient failures are common in containerized environments:
-      - Connection pool temporarily exhausted during a signal burst
-      - Network blip between the worker and PostgreSQL containers
-      - PostgreSQL briefly busy with autovacuum
-
-    Exponential backoff (0.15s → 0.30s → 0.60s) prevents thundering herd
-    retries while resolving most transient issues within 1 second.
-
-    WHY ONLY 3 ATTEMPTS:
-    If a failure isn't transient (schema mismatch, constraint violation, disk full),
-    retrying won't help. 3 attempts is enough to handle brief network issues
-    without masking real problems.
     """
     delay = 0.15
     last_error: BaseException | None = None
@@ -112,6 +102,8 @@ async def retry_postgres_write(operation: Callable[[], Awaitable[T]], attempts: 
             if not is_transient_error(exc) or attempt == attempts:
                 raise
             last_error = exc
+            if on_retry:
+                on_retry(attempt)
             logger.warning(
                 "Transient PostgreSQL write error, retrying attempt %s/%s: %s",
                 attempt, attempts, exc,

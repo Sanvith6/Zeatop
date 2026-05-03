@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     # Adaptive throttling threshold (fraction of queue_max_size)
     adaptive_throttle_threshold: float = 0.7  # start throttling at 70%
 
+    # Worker batch settings
+    worker_batch_size: int = 500
+    worker_batch_timeout: float = 1.0  # flush every 1 second regardless of size
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property

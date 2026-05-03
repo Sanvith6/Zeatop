@@ -118,21 +118,29 @@ export default function IncidentDetail() {
 
 function SignalsTable({ signals }) {
   return (
-    <div className="table-wrap">
-      <table>
-        <thead><tr><th>Time</th><th>Component</th><th>Type</th><th>Severity</th><th>Error</th></tr></thead>
-        <tbody>
-          {signals.length === 0 ? <tr><td colSpan="5">No linked signals yet</td></tr> : signals.map((signal) => (
-            <tr key={signal._id}>
-              <td>{new Date(signal.timestamp).toLocaleString()}</td>
-              <td>{signal.component_id}</td>
-              <td>{signal.component_type}</td>
-              <td><SeverityPill severity={signal.severity} /></td>
-              <td>{signal.error_message}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="signals-grid-container">
+      <div className="grid-header">
+        <div className="grid-cell">Time</div>
+        <div className="grid-cell">Component</div>
+        <div className="grid-cell">Type</div>
+        <div className="grid-cell">Severity</div>
+        <div className="grid-cell">Error Message</div>
+      </div>
+      <div className="grid-body">
+        {signals.length === 0 ? (
+          <div className="grid-row-empty">No linked signals recorded for this incident.</div>
+        ) : (
+          signals.map((signal) => (
+            <div key={signal._id} className="grid-row">
+              <div className="grid-cell">{new Date(signal.timestamp).toLocaleString()}</div>
+              <div className="grid-cell"><strong>{signal.component_id}</strong></div>
+              <div className="grid-cell">{signal.component_type}</div>
+              <div className="grid-cell"><SeverityPill severity={signal.severity} /></div>
+              <div className="grid-cell truncate" title={signal.error_message}>{signal.error_message}</div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

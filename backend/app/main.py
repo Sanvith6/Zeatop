@@ -2,7 +2,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Response, status
+from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -18,6 +18,7 @@ from app.routers.workitems import router as workitems_router
 from app.services.ingestion import prometheus_metrics
 from app.services.metrics import metrics_logger, metrics_state
 from app.services.queue import queue_depth
+from app.services.ws_manager import manager, redis_pubsub_listener
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 settings = get_settings()
@@ -29,10 +30,12 @@ async def lifespan(app: FastAPI):
     await init_mongo()
     await init_redis()
     metrics_task = asyncio.create_task(metrics_logger())
+    ws_task = asyncio.create_task(redis_pubsub_listener())
     try:
         yield
     finally:
         metrics_task.cancel()
+        ws_task.cancel()
         await engine.dispose()
         mongo_client.close()
         await redis_client.aclose()
@@ -51,6 +54,19 @@ app.add_middleware(
 app.include_router(signals_router)
 app.include_router(workitems_router)
 app.include_router(auth_router)
+
+
+@app.websocket("/ws/incidents")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception:
+        manager.disconnect(websocket)
 
 
 @app.get("/health")

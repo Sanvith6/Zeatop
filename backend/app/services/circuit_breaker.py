@@ -1,32 +1,17 @@
 """
-Circuit Breaker — Production-grade resilience pattern.
+Distributed circuit breaker — prevents cascading failures across workers.
 
-WHY THIS EXISTS:
-In a distributed system, downstream dependencies (PostgreSQL, MongoDB) can fail
-intermittently or go down entirely. Without a circuit breaker, the worker pool
-would continue hammering the failed service, causing:
-
-  1. Thread/connection pool exhaustion in the worker
-  2. Cascading latency spikes (every request waits for TCP timeout)
-  3. Flooding the recovering database with a thundering herd of retries
-
-The circuit breaker "trips" after a configurable number of consecutive failures,
-immediately rejecting calls for a cooldown period. This gives the downstream
-service time to recover and prevents resource exhaustion in the worker.
-
-STATE MACHINE:
-  CLOSED  → normal operation, calls pass through
-  OPEN    → circuit tripped, all calls fail-fast without touching the dependency
-  HALF_OPEN → after cooldown, allow a small number of probe calls to test recovery
-
-This is the same pattern used by Netflix Hystrix, AWS App Mesh, and Envoy proxy,
-implemented here at the application level for simplicity.
+Backpressure and failure isolation for downstream dependencies (Postgres/Mongo).
+Trips to OPEN state after N failures, allowing the dependency to recover 
+without being hammered by the worker pool. Probing via HALF_OPEN ensures 
+safe recovery before resuming full throughput.
 """
 
 import asyncio
 import logging
-import time
 from enum import StrEnum
+
+from app.db.redis import redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -43,15 +28,7 @@ class CircuitOpenError(RuntimeError):
 
 
 class CircuitBreaker:
-    """
-    Async-safe circuit breaker with configurable thresholds.
-
-    Thread safety note:
-    This implementation is designed for single-process async (asyncio) usage.
-    The state transitions are safe because asyncio is cooperative — only one
-    coroutine runs at a time within a single event loop. For multi-process
-    deployments, a distributed circuit breaker backed by Redis would be needed.
-    """
+    """Distributed circuit breaker backed by Redis."""
 
     def __init__(
         self,
@@ -64,96 +41,90 @@ class CircuitBreaker:
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.half_open_max_calls = half_open_max_calls
+        
+        # Redis Keys
+        self._state_key = f"cb:{name}:state"
+        self._fail_key = f"cb:{name}:failures"
+        self._half_open_key = f"cb:{name}:half_open_calls"
 
-        self._state = CircuitState.CLOSED
-        self._failure_count = 0
-        self._success_count = 0
-        self._last_failure_time: float = 0
-        self._half_open_calls = 0
-
-    @property
-    def state(self) -> CircuitState:
-        """
-        Check if the circuit should transition from OPEN → HALF_OPEN.
-        This is evaluated lazily on each access rather than using a timer,
-        which avoids background tasks and is simpler to reason about.
-        """
-        if self._state == CircuitState.OPEN:
-            elapsed = time.monotonic() - self._last_failure_time
-            if elapsed >= self.recovery_timeout:
-                logger.info(
-                    "Circuit breaker [%s] transitioning OPEN → HALF_OPEN after %.1fs cooldown",
-                    self.name, elapsed,
-                )
-                self._state = CircuitState.HALF_OPEN
-                self._half_open_calls = 0
-        return self._state
+    async def get_state(self) -> CircuitState:
+        """Fetch current state from Redis with lazy OPEN -> HALF_OPEN transition."""
+        state = await redis_client.get(self._state_key)
+        if state:
+            return CircuitState(state.decode() if isinstance(state, bytes) else state)
+        
+        # If the state key is missing, check if we were previously OPEN.
+        # If so, we transition to HALF_OPEN for probing.
+        was_open = await redis_client.get(f"cb:{self.name}:was_open")
+        if was_open:
+            logger.info("Circuit breaker [%s] cooldown finished — transitioning to HALF_OPEN", self.name)
+            await redis_client.set(self._state_key, CircuitState.HALF_OPEN)
+            await redis_client.delete(f"cb:{self.name}:was_open")
+            await redis_client.set(self._half_open_key, 0)
+            return CircuitState.HALF_OPEN
+            
+        return CircuitState.CLOSED
 
     async def call(self, func, *args, **kwargs):
-        """
-        Execute `func` through the circuit breaker.
-        If the circuit is OPEN, raises CircuitOpenError immediately.
-        """
-        current_state = self.state  # triggers lazy OPEN → HALF_OPEN check
+        """Execute `func` through the distributed circuit breaker."""
+        state = await self.get_state()
 
-        if current_state == CircuitState.OPEN:
+        if state == CircuitState.OPEN:
             raise CircuitOpenError(
-                f"Circuit breaker [{self.name}] is OPEN — failing fast to protect downstream"
+                f"Circuit breaker [{self.name}] is OPEN (distributed) — failing fast"
             )
 
-        if current_state == CircuitState.HALF_OPEN:
-            if self._half_open_calls >= self.half_open_max_calls:
+        if state == CircuitState.HALF_OPEN:
+            # Atomic increment to limit probe calls across all workers
+            calls = await redis_client.incr(self._half_open_key)
+            if int(calls) > self.half_open_max_calls:
                 raise CircuitOpenError(
                     f"Circuit breaker [{self.name}] is HALF_OPEN — max probe calls reached"
                 )
-            self._half_open_calls += 1
 
         try:
             result = await func(*args, **kwargs)
-            self._on_success()
+            await self._on_success(state)
             return result
         except Exception as exc:
-            self._on_failure(exc)
+            await self._on_failure(exc)
             raise
 
-    def _on_success(self) -> None:
-        """Reset failure count on success. Close circuit if we're in HALF_OPEN."""
-        if self._state == CircuitState.HALF_OPEN:
-            self._success_count += 1
-            # Require at least half_open_max_calls successes to close
-            if self._success_count >= self.half_open_max_calls:
-                logger.info("Circuit breaker [%s] recovered — transitioning HALF_OPEN → CLOSED", self.name)
-                self._state = CircuitState.CLOSED
-                self._failure_count = 0
-                self._success_count = 0
+    async def _on_success(self, state: CircuitState) -> None:
+        """Reset failures on success. Close circuit if we were probing."""
+        if state == CircuitState.HALF_OPEN:
+            logger.info("Circuit breaker [%s] recovered — transitioning HALF_OPEN → CLOSED", self.name)
+            await redis_client.delete(self._state_key)
+            await redis_client.delete(self._fail_key)
+            await redis_client.delete(self._half_open_key)
         else:
-            self._failure_count = 0
+            # Normal success in CLOSED state clears any intermittent failures
+            await redis_client.delete(self._fail_key)
 
-    def _on_failure(self, exc: Exception) -> None:
-        """Increment failure count. Trip circuit if threshold exceeded."""
-        self._failure_count += 1
-        self._last_failure_time = time.monotonic()
+    async def _on_failure(self, exc: Exception) -> None:
+        """Increment failures in Redis. Trip circuit if threshold reached."""
+        fails = await redis_client.incr(self._fail_key)
+        # Keep failure count around for recovery timeout window
+        await redis_client.expire(self._fail_key, int(self.recovery_timeout * 2))
+        
         logger.warning(
-            "Circuit breaker [%s] recorded failure %d/%d: %s",
-            self.name, self._failure_count, self.failure_threshold, exc,
+            "Circuit breaker [%s] recorded failure %s/%d: %s",
+            self.name, fails, self.failure_threshold, exc,
         )
-        if self._failure_count >= self.failure_threshold:
+
+        if int(fails) >= self.failure_threshold:
             logger.error(
-                "Circuit breaker [%s] TRIPPED — transitioning to OPEN state for %.0fs",
+                "Circuit breaker [%s] TRIPPED — transitioning to OPEN for %.0fs",
                 self.name, self.recovery_timeout,
             )
-            self._state = CircuitState.OPEN
-            self._success_count = 0
+            # Trip to OPEN with TTL
+            await redis_client.setex(self._state_key, int(self.recovery_timeout), CircuitState.OPEN)
+            # Set 'was_open' flag to trigger HALF_OPEN transition after TTL expires
+            await redis_client.setex(f"cb:{self.name}:was_open", int(self.recovery_timeout + 60), "1")
 
 
 # ---------------------------------------------------------------------------
 # Module-level circuit breaker instances.
-#
-# WHY separate breakers per dependency:
-# If only MongoDB is down but PostgreSQL is healthy, we should still process
-# signals that only need Postgres writes. Separate breakers allow independent
-# failure isolation — the same principle behind bulkhead patterns.
 # ---------------------------------------------------------------------------
-
 mongo_breaker = CircuitBreaker(name="mongodb", failure_threshold=5, recovery_timeout=30.0)
 postgres_breaker = CircuitBreaker(name="postgresql", failure_threshold=5, recovery_timeout=30.0)

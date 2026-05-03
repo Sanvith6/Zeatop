@@ -1,0 +1,51 @@
+groups:
+  - name: zetatop_alerts
+    rules:
+      # --- Saturation Alerts ---
+      - alert: IngestionQueueSaturated
+        expr: ims_queue_depth > 7000
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ingestion queue depth high ({{ $value }})"
+          description: "Queue is at 70% capacity. Adaptive throttling is active."
+
+      - alert: IngestionQueueCritical
+        expr: ims_queue_depth > 9000
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ingestion queue near saturation ({{ $value }})"
+          description: "Queue is at 90% capacity. System may start rejecting signals."
+
+      # --- Resilience Alerts ---
+      - alert: CircuitBreakerTripped
+        expr: ims_circuit_breaker_state == 1
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit Breaker OPEN: {{ $labels.dependency }}"
+          description: "The distributed circuit breaker for {{ $labels.dependency }} has tripped. Failing fast."
+
+      # --- Error Alerts ---
+      - alert: HighSignalFailureRate
+        expr: rate(ims_signals_failed_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High signal failure rate detected"
+          description: "More than 10 signals/sec are being sent to DLQ."
+
+      # --- Performance Alerts ---
+      - alert: HighProcessingLatency
+        expr: histogram_quantile(0.99, rate(ims_signal_processing_seconds_bucket[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p99 processing latency high"
+          description: "99th percentile processing time is over 2 seconds."

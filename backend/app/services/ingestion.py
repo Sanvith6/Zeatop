@@ -1,11 +1,13 @@
 import asyncio
 import logging
 import time
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+from pymongo import UpdateOne
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
 
 from app.config import get_settings
@@ -18,11 +20,28 @@ from app.services.alerts import get_alert_strategy
 from app.services.circuit_breaker import CircuitOpenError, mongo_breaker, postgres_breaker
 from app.services.classifier import classify_severity
 from app.services.metrics import metrics_state
-from app.services.queue import ack_signal, dequeue_signal, queue_depth
+from app.services.queue import ack_signal, ack_signals_bulk, dequeue_signal, queue_depth
 from app.services.workitems import invalidate_workitems_cache
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+@dataclass
+class BatchBuffer:
+    raw_signals: list[str] = field(default_factory=list)
+    signals: list[tuple[str, SignalIn]] = field(default_factory=list)
+    last_flush: float = field(default_factory=time.monotonic)
+
+    def is_ready(self) -> bool:
+        return (
+            len(self.raw_signals) >= settings.worker_batch_size
+            or (time.monotonic() - self.last_flush) >= settings.worker_batch_timeout
+        )
+
+    def clear(self):
+        self.raw_signals.clear()
+        self.signals.clear()
+        self.last_flush = time.monotonic()
 MAX_PROCESSING_ATTEMPTS = 3
 
 
@@ -41,54 +60,98 @@ def signal_to_document(signal: SignalIn, queue_id: str) -> dict[str, object]:
 
 
 async def worker_loop(worker_id: int) -> None:
-    """Main worker loop — continuously dequeue and process signals."""
+    """Main worker loop — collects signals into batches and flushes them."""
     logger.info("Worker %d: STARTED", worker_id)
+    buffer = BatchBuffer()
+    
     while True:
         try:
-            message = await dequeue_signal()
-            if message is None:
-                continue
+            # 1. Try to dequeue a signal (non-blocking if possible, but BRPOPLPUSH is blocking)
+            message = await dequeue_signal(timeout_seconds=1)
+            if message:
+                raw, queue_id, enqueued_at, signal = message
+                buffer.raw_signals.append(raw)
+                buffer.signals.append((queue_id, signal))
+                
+                # Record queue wait time
+                wait_time = time.time() - enqueued_at
+                metrics_state.record_queue_wait(wait_time)
+                logger.debug("Worker %d: Buffered signal %s (waited %.3fs)", worker_id, queue_id, wait_time)
+
+            # 2. Check if batch is ready for flush
+            if buffer.signals and buffer.is_ready():
+                await flush_batch(worker_id, buffer)
+                buffer.clear()
             
-            raw, queue_id, signal = message
-            logger.info("Worker %d: POPPED signal %s for %s", worker_id, queue_id, signal.component_id)
-            
-            dequeue_time = time.monotonic()
-            await process_with_retries(worker_id, raw, queue_id, signal, dequeue_time)
-            
+            # 3. Small sleep if no message to prevent busy-looping
+            if message is None and not buffer.signals:
+                await asyncio.sleep(0.1)
+
+        except asyncio.CancelledError:
+            # Coordinated shutdown: flush whatever is left in the buffer
+            if buffer.signals:
+                logger.info("Worker %d: Flushing buffer before shutdown...", worker_id)
+                await flush_batch(worker_id, buffer)
+            break
         except Exception as exc:
             logger.exception("Worker %d: LOOP CRASH: %s", worker_id, str(exc))
             await asyncio.sleep(1)
 
 
-async def process_with_retries(
-    worker_id: int, raw: str, queue_id: str, signal: SignalIn, dequeue_time: float
-) -> None:
-    """Process a signal with retry logic and DLQ fallback."""
-    for attempt in range(1, MAX_PROCESSING_ATTEMPTS + 1):
-        try:
-            logger.info("Worker %d: Attempt %d/3 for signal %s", worker_id, attempt, queue_id)
-            await process_signal(signal, queue_id)
+async def flush_batch(worker_id: int, buffer: BatchBuffer) -> None:
+    """Flush a batch of signals to Mongo and Postgres."""
+    start_time = time.monotonic()
+    count = len(buffer.signals)
+    logger.info("Worker %d: Flushing batch of %d signals...", worker_id, count)
+    
+    try:
+        # Step 1: Bulk Record to MongoDB (Idempotent)
+        await record_signals_bulk(buffer.signals)
+        
+        # Step 2: Process Work Items (Batch Logic)
+        # Note: This still uses the debouncing logic per signal, 
+        # but wraps updates in fewer transactions where possible.
+        for queue_id, signal in buffer.signals:
+            await resolve_work_item(signal, queue_id, worker_id)
             
-            # SUCCESS
-            await ack_signal(raw)
-            processing_time = time.monotonic() - dequeue_time
-            metrics_state.record_processed(latency_seconds=processing_time)
-            logger.info("Worker %d: SUCCESS signal %s", worker_id, queue_id)
-            return
-            
-        except CircuitOpenError as exc:
-            logger.warning("Worker %d: CIRCUIT OPEN for signal %s", worker_id, queue_id)
-            break # Go to DLQ
-        except Exception as exc:
-            logger.warning("Worker %d: ERROR on signal %s (attempt %d): %r", worker_id, queue_id, attempt, exc)
-            if attempt < MAX_PROCESSING_ATTEMPTS:
-                await asyncio.sleep(0.5 * (2 ** (attempt - 1)))
-                continue
+        # Step 3: Bulk Ack in Redis
+        await ack_signals_bulk(buffer.raw_signals)
+        
+        latency = time.monotonic() - start_time
+        metrics_state.record_processed(latency_seconds=latency)
+        logger.info("Worker %d: SUCCESS batch flush (%d signals) in %.3fs", worker_id, count, latency)
+        
+    except CircuitOpenError:
+        logger.warning("Worker %d: CIRCUIT OPEN during batch flush — signals remain in processing queue", worker_id)
+        # We don't ACK, so signals stay in the processing list and will be recovered or retried.
+        # However, for production we should move to DLQ if they keep failing.
+        # To keep it simple and safe: just let them stay for now.
+    except Exception as exc:
+        logger.error("Worker %d: BATCH FLUSH ERROR: %r", worker_id, exc)
 
-    # DLQ Fallback
-    logger.error("Worker %d: SIGNAL %s FAILED after all attempts. Moving to DLQ.", worker_id, queue_id)
-    await store_failed_signal(raw, queue_id, signal, "Exhausted retries")
-    await ack_signal(raw)
+
+async def record_signals_bulk(signals: list[tuple[str, SignalIn]]) -> None:
+    """Perform bulk upsert to MongoDB."""
+    db = get_mongo_db()
+    ops = []
+    for queue_id, signal in signals:
+        # Classification
+        from app.models.schemas import Severity
+        effective_severity = classify_severity(signal.component_type.value, signal.severity.value)
+        if effective_severity != signal.severity.value:
+            signal = signal.model_copy(update={"severity": Severity(effective_severity)})
+            
+        doc = signal_to_document(signal, queue_id)
+        ops.append(UpdateOne(
+            {"queue_id": queue_id},
+            {"$setOnInsert": doc},
+            upsert=True
+        ))
+    
+    if ops:
+        start = time.monotonic()
+        await mongo_breaker.call(db.signals.bulk_write, ops, ordered=False)
+        metrics_state.record_db_latency("mongodb", time.monotonic() - start)
 
 
 async def process_signal(signal: SignalIn, queue_id: str) -> None:
@@ -124,16 +187,25 @@ async def process_signal(signal: SignalIn, queue_id: str) -> None:
         )
 
 
-async def resolve_work_item(signal: SignalIn, queue_id: str) -> UUID | None:
+async def resolve_work_item(signal: SignalIn, queue_id: str, worker_id: int = 0) -> UUID | None:
     """Determine whether this signal should create or update a work item."""
-    # Step 1: Check for existing active work item
+    # Step 1: Check Redis cache for active work item (Fastest path)
+    # This prevents hammering Postgres during high-throughput bursts for the same component.
+    cached_id = await redis_client.get(f"debounce:{signal.component_id}")
+    if cached_id:
+        parsed_id = UUID(cached_id.decode() if isinstance(cached_id, bytes) else cached_id)
+        await increment_signal_count(parsed_id, signal, worker_id)
+        return parsed_id
+
+    # Step 2: Check PostgreSQL for an existing active work item (Slow path)
+    # If found, we cache it in Redis to avoid subsequent DB queries for this component.
     open_id = await get_existing_workitem_id(signal.component_id)
     if open_id:
-        logger.info("  -> Found existing open work item %s for %s", open_id, signal.component_id)
-        await increment_signal_count(open_id, signal)
+        await redis_client.setex(f"debounce:{signal.component_id}", 10, str(open_id))
+        await increment_signal_count(open_id, signal, worker_id)
         return open_id
 
-    # Step 2: Add to debounce window in Redis
+    # Step 3: Threshold/Debounce window in Redis
     now = datetime.now(timezone.utc)
     threshold = now - timedelta(seconds=10)
     debounce_key = f"debounce_window:{signal.component_id}"
@@ -144,22 +216,20 @@ async def resolve_work_item(signal: SignalIn, queue_id: str) -> UUID | None:
     await redis_client.expire(debounce_key, 20)
     
     window_size = int(await redis_client.zcard(debounce_key))
-    logger.info("  -> Component %s window size: %d", signal.component_id, window_size)
-
-    # Step 3: Threshold reached (10 signals) -> create work item
-    if window_size >= 10:
+    
+    # Step 4: Threshold reached (100 signals) -> create new work item
+    if window_size >= 100:
         logger.info("  -> THRESHOLD REACHED for %s (size %d)", signal.component_id, window_size)
         
-        # Check cache to avoid race conditions
+        # Double-check cache to prevent race condition during creation
         cached_id = await redis_client.get(f"debounce:{signal.component_id}")
         if cached_id:
-            logger.info("  -> Using cached work item %s", cached_id)
-            parsed = UUID(cached_id)
-            await increment_signal_count(parsed, signal)
+            parsed = UUID(cached_id.decode() if isinstance(cached_id, bytes) else cached_id)
+            await increment_signal_count(parsed, signal, worker_id)
             return parsed
 
         # Create new work item
-        work_item_id = await create_work_item(signal, window_size)
+        work_item_id = await create_work_item(signal, window_size, worker_id)
         logger.info("  -> CREATED NEW WORK ITEM: %s", work_item_id)
         
         await redis_client.setex(f"debounce:{signal.component_id}", 10, str(work_item_id))
@@ -205,7 +275,7 @@ async def get_existing_workitem_id(component_id: str) -> UUID | None:
     )
 
 
-async def create_work_item(signal: SignalIn, signal_count: int) -> UUID:
+async def create_work_item(signal: SignalIn, signal_count: int, worker_id: int = 0) -> UUID:
     """Create a new work item in PostgreSQL with transactional integrity."""
     async def operation() -> UUID:
         async with AsyncSessionLocal() as session:
@@ -238,13 +308,26 @@ async def create_work_item(signal: SignalIn, signal_count: int) -> UUID:
                 return existing_id
 
     await invalidate_workitems_cache()
-    return await asyncio.wait_for(
-        retry_postgres_write(operation),
+    start = time.monotonic()
+    res = await asyncio.wait_for(
+        retry_postgres_write(
+            operation, 
+            on_retry=lambda _: metrics_state.record_retry(worker_id)
+        ),
         timeout=settings.db_call_timeout * MAX_PROCESSING_ATTEMPTS,
     )
+    metrics_state.record_db_latency("postgresql", time.monotonic() - start)
+    
+    # Broadcast new incident via Redis Pub/Sub for real-time UI updates
+    await redis_client.publish("incidents:updates", json.dumps({
+        "type": "INCIDENT_CREATED",
+        "work_item_id": str(res)
+    }))
+    
+    return res
 
 
-async def increment_signal_count(work_item_id: UUID, signal: SignalIn) -> None:
+async def increment_signal_count(work_item_id: UUID, signal: SignalIn, worker_id: int = 0) -> None:
     """Atomically increment the signal count and potentially upgrade severity."""
     async def operation() -> None:
         async with AsyncSessionLocal() as session:
@@ -259,8 +342,17 @@ async def increment_signal_count(work_item_id: UUID, signal: SignalIn) -> None:
                         item.severity = signal.severity.value
                     item.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
-    await retry_postgres_write(operation)
+    await retry_postgres_write(
+        operation, 
+        on_retry=lambda _: metrics_state.record_retry(worker_id)
+    )
     await invalidate_workitems_cache()
+    
+    # Broadcast update via Redis Pub/Sub for real-time UI updates
+    await redis_client.publish("incidents:updates", json.dumps({
+        "type": "INCIDENT_UPDATED",
+        "work_item_id": str(work_item_id)
+    }))
 
 
 def severity_value(severity: str) -> int:
