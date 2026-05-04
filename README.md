@@ -92,8 +92,9 @@ docker-compose up --build
 
 # Generate sample incidents (in a separate terminal)
 python scripts/simulate_failure.py       # Runs all scenarios
-python scripts/simulate_failure.py 1     # Infrastructure failures only
-python scripts/simulate_failure.py 2     # External dependency failures only
+ 
+# Run empirical load test (verify 1,000+ req/s)
+python scripts/load_test.py
 ```
 
 ### Service URLs
