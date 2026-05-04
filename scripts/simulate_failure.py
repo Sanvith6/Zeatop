@@ -1,5 +1,6 @@
 import asyncio
 import random
+import sys
 from datetime import datetime, timezone
 
 import httpx
@@ -10,9 +11,13 @@ DEMO_CREDENTIALS = {"username": "sre-intern", "password": "zeotap-local"}
 
 
 async def get_token(client: httpx.AsyncClient) -> str:
-    response = await client.post(TOKEN_URL, json=DEMO_CREDENTIALS)
-    response.raise_for_status()
-    return response.json()["access_token"]
+    try:
+        response = await client.post(TOKEN_URL, json=DEMO_CREDENTIALS)
+        response.raise_for_status()
+        return response.json()["access_token"]
+    except Exception as e:
+        print(f"Failed to get auth token: {e}")
+        sys.exit(1)
 
 
 async def send_signal(
@@ -45,41 +50,59 @@ async def send_burst(
     message: str,
 ) -> None:
     delay = duration_seconds / count
-    tasks: list[asyncio.Task[None]] = []
+    tasks = []
     for index in range(1, count + 1):
         tasks.append(asyncio.create_task(send_signal(client, token, component_id, component_type, severity, message)))
         if index % 10 == 0 or index == count:
-            print(f"{component_id}: sent {index}/{count}")
+            print(f"[{component_id}] sent {index}/{count}")
         await asyncio.sleep(delay)
     await asyncio.gather(*tasks)
 
 
-async def send_random_noise(client: httpx.AsyncClient, token: str) -> None:
-    components = [
-        ("CACHE_CLUSTER_01", "cache"),
-        ("CACHE_CLUSTER_02", "cache"),
-        ("QUEUE_INGEST_01", "queue"),
-        ("QUEUE_EVENTS_02", "queue"),
-    ]
-    for index in range(1, 31):
-        component_id, component_type = random.choice(components)
-        severity = random.choice(["P2", "P3"])
-        await send_signal(client, token, component_id, component_type, severity, "Intermittent degraded performance")
-        print(f"noise: sent {index}/30")
-        await asyncio.sleep(0.1)
+async def run_scenario_1(client: httpx.AsyncClient, token: str):
+    """Infrastructure Failures (RDBMS & MCP)"""
+    print("\n--- Scenario 1: Infrastructure Outages ---")
+    print("Simulating RDBMS connection timeouts...")
+    await send_burst(client, token, 150, 5, "DB_PRIMARY_01", "rdbms", "P0", "Primary database connection timeout")
+    print("Simulating MCP control plane failure...")
+    await send_burst(client, token, 80, 4, "MCP_HOST_02", "mcp", "P0", "MCP control plane unreachable")
+
+
+async def run_scenario_2(client: httpx.AsyncClient, token: str):
+    """External Dependency Failures (Stripe & API Gateway)"""
+    print("\n--- Scenario 2: External Dependencies ---")
+    print("Simulating Stripe API 503s...")
+    await send_burst(client, token, 120, 5, "PAYMENT_GATEWAY_01", "external", "P1", "Stripe API Error: 503 Service Unavailable")
+    print("Simulating API Gateway 504 timeouts...")
+    await send_burst(client, token, 60, 3, "API_GATEWAY_PROD", "compute", "P0", "Upstream connection timeout (504 Gateway Timeout)")
+
+
+async def run_scenario_3(client: httpx.AsyncClient, token: str):
+    """Resource Exhaustion (Cache OOM & Disk Latency)"""
+    print("\n--- Scenario 3: Resource Exhaustion ---")
+    print("Simulating Redis Memory Leak...")
+    await send_burst(client, token, 200, 8, "CACHE_CLUSTER_01", "cache", "P2", "Redis OOM: Out of memory, eviction policy failed")
+    print("Simulating High Disk Latency...")
+    await send_burst(client, token, 90, 4, "STORAGE_NODE_05", "storage", "P1", "Disk I/O Latency > 500ms (High Wait State)")
 
 
 async def main() -> None:
     timeout = httpx.Timeout(10.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
         token = await get_token(client)
-        print("Starting RDBMS outage simulation")
-        await send_burst(client, token, 150, 8, "DB_PRIMARY_01", "rdbms", "P0", "Primary database connection timeout")
-        print("Starting MCP failure simulation")
-        await send_burst(client, token, 80, 5, "MCP_HOST_02", "mcp", "P0", "MCP control plane unreachable")
-        print("Sending random lower-severity signals")
-        await send_random_noise(client, token)
-    print("Simulation complete")
+        
+        # If no arguments, run all. Otherwise run specific scenario.
+        args = sys.argv[1:]
+        if not args or "all" in args:
+            await run_scenario_1(client, token)
+            await run_scenario_2(client, token)
+            await run_scenario_3(client, token)
+        else:
+            if "1" in args: await run_scenario_1(client, token)
+            if "2" in args: await run_scenario_2(client, token)
+            if "3" in args: await run_scenario_3(client, token)
+
+    print("\nAll requested simulations complete.")
 
 
 if __name__ == "__main__":

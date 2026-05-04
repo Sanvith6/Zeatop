@@ -89,9 +89,9 @@ graph TB
 docker-compose up --build
 
 # Generate sample incidents (in a separate terminal)
-python scripts/simulate_failure.py
-python scripts/simulate_failure2.py
-python scripts/simulate_failure3.py
+python scripts/simulate_failure.py       # Runs all scenarios
+python scripts/simulate_failure.py 1     # Infrastructure failures only
+python scripts/simulate_failure.py 2     # External dependency failures only
 ```
 
 ### Service URLs
@@ -291,9 +291,20 @@ Redis is configured with `maxmemory-policy noeviction` — it will never silentl
 
 ## 9. Testing
 
+Zetatop includes a comprehensive test suite covering the state machine, signal ingestion logic, and API endpoints.
+
+### Running Tests
+
+Ensure you have the backend dependencies installed, then run:
+
 ```bash
-pytest backend/tests
-# 47 passed in ~5s
+# Run all tests
+pytest backend/tests -v
+
+# Run specific test suites
+pytest backend/tests/test_state_machine.py -v
+pytest backend/tests/test_rca_validation.py -v
+pytest backend/tests/test_circuit_breaker.py -v
 ```
 
 ### Test Coverage

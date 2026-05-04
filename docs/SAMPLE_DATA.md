@@ -6,29 +6,29 @@ The `scripts/` directory contains production-quality simulation tools that demon
 
 ---
 
-## 1. simulate_failure.py — RDBMS & MCP Outage
+## 1. simulate_failure.py — Consolidated SRE Failure Simulations
 
-**Scenario**: Primary database goes down, followed by a control plane failure.
+The primary tool for demonstrating system resilience. This script includes multiple scenarios that model real-world infrastructure failures.
 
 ```bash
+# Run all failure scenarios sequentially
 python scripts/simulate_failure.py
+
+# Run specific scenarios only
+python scripts/simulate_failure.py 1  # Infrastructure (RDBMS & MCP)
+python scripts/simulate_failure.py 2  # External Dependencies (Stripe)
+python scripts/simulate_failure.py 3  # Resource Exhaustion (Cache OOM)
 ```
 
-### What It Does
+### Simulation Scenarios
 
-| Phase | Component | Type | Severity | Signals | Duration |
-|-------|-----------|------|----------|---------|----------|
-| 1 | `DB_PRIMARY_01` | rdbms | P0 | 150 | 8s |
-| 2 | `MCP_HOST_02` | mcp | P0 | 80 | 5s |
-| 3 | Random noise (4 cache/queue components) | cache/queue | P2/P3 | 30 | 3s |
+| Scenario | Component Type | Severity | Failure Type | Expected Result |
+|----------|----------------|----------|--------------|-----------------|
+| **1** | RDBMS, MCP | P0 | Outage | 2 Critical incidents, noise debounced |
+| **2** | External, Compute | P1, P0 | Timeout | AI RCA identifies 3rd party root cause |
+| **3** | Cache, Storage | P2, P1 | OOM/Latency | 200+ signals consolidated into 1 incident |
 
-### Expected Result
-
-- 2 P0 incidents created (DB_PRIMARY_01, MCP_HOST_02)
-- Noise signals are debounced — cache/queue components stay below the 100-signal threshold, so they do NOT create incidents
-- Dashboard shows 99%+ noise reduction
-
-### Example Signal Payload
+### Example Signal Payload (JSON)
 
 ```json
 {
@@ -42,58 +42,14 @@ python scripts/simulate_failure.py
 
 ---
 
-## 2. simulate_failure2.py — External Dependencies
+## 2. Chaos & Load Testing
 
-**Scenario**: Payment gateway returns 503, API gateway has configuration error causing 504 timeouts.
-
-```bash
-python scripts/simulate_failure2.py
-```
-
-| Phase | Component | Type | Severity | Signals | Duration |
-|-------|-----------|------|----------|---------|----------|
-| 1 | `PAYMENT_GATEWAY_01` | external | P1 | 120 | 6s |
-| 2 | `API_GATEWAY_PROD` | compute | P0 | 60 | 4s |
-
-### Expected Result
-
-- 2 incidents created with distinct component types
-- AI RCA correctly identifies "External Dependency" for the payment gateway
-- Severity auto-classification may upgrade the API gateway signals based on component baseline
-
----
-
-## 3. simulate_failure3.py — Resource Exhaustion
-
-**Scenario**: Cache cluster runs out of memory, storage node has disk I/O saturation.
+For more intensive validation:
 
 ```bash
-python scripts/simulate_failure3.py
+python scripts/high_load.py   # High-throughput stress test (10k+ signals)
+python scripts/chaos_test.py  # Automated chaos engineering validation
 ```
-
-| Phase | Component | Type | Severity | Signals | Duration |
-|-------|-----------|------|----------|---------|----------|
-| 1 | `CACHE_CLUSTER_01` | cache | P2 | 200 | 10s |
-| 2 | `STORAGE_NODE_05` | storage | P1 | 90 | 5s |
-
-### Expected Result
-
-- 2 incidents created
-- Cache cluster signals demonstrate high-volume debouncing (200 signals → 1 incident)
-- AI RCA suggests memory allocation fixes and eviction policy adjustments
-
----
-
-## 4. Running All Simulations
-
-```bash
-# Run all three in sequence
-python scripts/simulate_failure.py
-python scripts/simulate_failure2.py
-python scripts/simulate_failure3.py
-```
-
-After running all three, the dashboard should show **6+ distinct incidents** across different component types, severities, and failure categories.
 
 ---
 
