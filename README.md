@@ -2,7 +2,7 @@
 
 [![SRE Principles](https://img.shields.io/badge/SRE-Safe--by--Design-blueviolet?style=for-the-badge)](https://sre.google/)
 [![AI-Powered](https://img.shields.io/badge/AI--Powered-Groq--Llama3-orange?style=for-the-badge)](https://groq.com/)
-[![Throughput](https://img.shields.io/badge/Throughput-10k%2B%20Signals%2Fsec-success?style=for-the-badge)]()
+[![Throughput](https://img.shields.io/badge/Throughput-900+%20Signals%2Fsec-success?style=for-the-badge)]()
 [![Tests](https://img.shields.io/badge/Tests-47%20Passed-brightgreen?style=for-the-badge)]()
 [![CI](https://github.com/Sanvith6/zea/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanvith6/zea/actions)
 
@@ -17,7 +17,7 @@ A single database outage can produce **10,000+ error signals** in seconds. Witho
 
 ### Solution
 Zetatop implements a **decoupled Producer-Consumer architecture** that:
-- Accepts signals at **10,000+/sec** without blocking (Redis LPUSH in <10ms)
+- Accepts signals at **~1,000/sec** on local dev hardware (Tested @ 928 req/s)
 - **Debounces** hundreds of signals into a single actionable incident (99%+ noise reduction)
 - Provides **AI-powered Root Cause Analysis** via Groq (Llama 3.3 70B)
 - Enforces a **strict incident lifecycle** with mandatory RCA before closure
@@ -363,17 +363,13 @@ pytest backend/tests/test_circuit_breaker.py -v
 | [LOAD_TEST_RESULTS.md](docs/LOAD_TEST_RESULTS.md) | Load test results with real numbers |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture reference |
 
----
-
 ## 10. Known Limitations & Future Roadmap
  
 | Area | Current State | Production Improvement |
 |------|--------------|----------------------|
-| **Load Testing** | Theoretical 10k/sec via Redis O(1) architecture | Verify with distributed k6/Locust benchmarking suites |
-| **WebSocket** | Single fallback poll on disconnect | Implement persistent reconnection with exponential backoff |
-| **JWT Depth** | HS256 + Expiry validation | Add refresh tokens, granular scopes (RBAC), and secret rotation |
-| **Database Scaling** | Single-instance PG/Mongo | Implement read-replicas and database sharding |
-| **Alerting** | In-app dashboard only | PagerDuty / Slack / Webhook integrations |
+| **Load Testing** | Measured ~1k/sec (see [LOAD_TEST_RESULTS.md](docs/LOAD_TEST_RESULTS.md)) | Distributed k6 benchmark across multiple nodes |
+| **WebSocket** | Exponential backoff reconnection (5 attempts) | socket.io with guaranteed delivery |
+| **JWT** | HS256 + expiry validation | Refresh tokens, RBAC, secret rotation |
  
 ---
  

@@ -12,6 +12,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [sortAsc, setSortAsc] = useState(true);
   const [severityFilter, setSeverityFilter] = useState("ALL");
+  const [wsStatus, setWsStatus] = useState("connected"); // connected, reconnecting, failed
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const MAX_RECONNECT_ATTEMPTS = 5;
 
   async function loadItems() {
     try {
@@ -29,10 +32,7 @@ export default function Dashboard() {
     }
   }
 
-  useEffect(() => {
-    loadItems();
-    
-    // Determine WebSocket URL based on current host
+  function connectWebSocket() {
     const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsHost = window.location.hostname === "localhost" ? "localhost:8000" : window.location.host;
     const wsUrl = `${wsProtocol}//${wsHost}/ws/incidents`;
@@ -40,24 +40,42 @@ export default function Dashboard() {
     console.log("Connecting to WebSocket:", wsUrl);
     const socket = new WebSocket(wsUrl);
 
+    socket.onopen = () => {
+      console.log("WebSocket connected");
+      setWsStatus("connected");
+      setReconnectAttempt(0);
+    };
+
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       console.log("Real-time update received:", data);
-      
-      // For any incident event, refresh the list to ensure accurate state.
-      // In a more complex app, we could update the specific item in state,
-      // but reloading from the Redis-cached API is safer and still sub-100ms.
       loadItems();
     };
 
     socket.onclose = () => {
-      console.warn("WebSocket closed. Falling back to polling in 5s...");
-      const timer = setTimeout(loadItems, 5000);
-      return () => clearTimeout(timer);
+      if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
+        setWsStatus("reconnecting");
+        const nextAttempt = reconnectAttempt + 1;
+        setReconnectAttempt(nextAttempt);
+        const delay = Math.pow(2, nextAttempt - 1) * 1000;
+        console.warn(`WebSocket closed. Reconnecting in ${delay/1000}s (Attempt ${nextAttempt}/${MAX_RECONNECT_ATTEMPTS})...`);
+        setTimeout(connectWebSocket, delay);
+      } else {
+        setWsStatus("failed");
+        console.error("WebSocket reconnection failed after max attempts.");
+      }
     };
 
+    return socket;
+  }
+
+  useEffect(() => {
+    loadItems();
+    const socket = connectWebSocket();
     return () => {
-      socket.close();
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
     };
   }, []);
 
@@ -179,6 +197,19 @@ export default function Dashboard() {
           <span className="chart-label">{timeseries.length > 0 ? new Date(timeseries[timeseries.length - 1].time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}</span>
         </div>
       </div>
+
+      {wsStatus === "reconnecting" && (
+        <div className="info-banner">
+          <RefreshCw size={14} className="animate-spin" /> 
+          Reconnecting to live updates (Attempt {reconnectAttempt}/{MAX_RECONNECT_ATTEMPTS})...
+        </div>
+      )}
+
+      {wsStatus === "failed" && (
+        <div className="error-banner">
+          ⚠️ Connection lost - Please refresh the page for live updates.
+        </div>
+      )}
 
       {error && <div className="error-banner">{error}</div>}
 

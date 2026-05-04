@@ -142,11 +142,11 @@ Testing was performed using custom simulation scripts that send signals via HTTP
 
 | Metric | Value |
 |--------|-------|
-| Peak Ingestion Rate | 13.3 req/s (single-threaded client) |
-| API Response Time | < 10ms |
-| p99 Processing Latency | 49.4ms |
-| Queue Saturation (peak) | 0.45% |
-| Error Rate | 0 req/s |
+| Peak Ingestion Rate | **928.1 req/s** (100 concurrent workers) |
+| Avg API Response Time | 105.2ms |
+| p99 API Latency | 234.3ms |
+| Success Rate | 100% |
+| Error Rate | 0.00% |
 
 > Full results with analysis: [LOAD_TEST_RESULTS.md](LOAD_TEST_RESULTS.md)
 
@@ -200,11 +200,9 @@ GitHub Actions runs on every push to `main` and `develop`:
  
 | Area | Current State | Production Improvement |
 |------|--------------|----------------------|
-| **Load Testing** | Theoretical 10k/sec via Redis O(1) architecture | Verify with distributed k6/Locust benchmarking suites |
-| **WebSocket** | Single fallback poll on disconnect | Implement persistent reconnection with exponential backoff |
-| **JWT Depth** | HS256 + Expiry validation | Add refresh tokens, granular scopes (RBAC), and secret rotation |
-| **Database Scaling** | Single-instance PG/Mongo | Implement read-replicas and database sharding |
-| **Alerting** | In-app dashboard only | PagerDuty / Slack / Webhook integrations |
+| **Load Testing** | Measured ~1k/sec (see [LOAD_TEST_RESULTS.md](LOAD_TEST_RESULTS.md)) | Distributed k6 benchmark across multiple nodes |
+| **WebSocket** | Exponential backoff reconnection (5 attempts) | socket.io with guaranteed delivery |
+| **JWT** | HS256 + expiry validation | Refresh tokens, RBAC, secret rotation |
  
 ---
  

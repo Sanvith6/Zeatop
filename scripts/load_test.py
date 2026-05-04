@@ -1,51 +1,89 @@
 import asyncio
 import time
-import httpx
-import random
+import aiohttp
+import sys
 from datetime import datetime, timezone
 
 # Configuration
 API_URL = "http://localhost:8000/api/signals"
-TOKEN_URL = "http://localhost:8000/api/auth/token"
-DEMO_CREDENTIALS = {"username": "sre-intern", "password": "zeotap-local"}
-CONCURRENCY = 10  # Number of parallel requests
-TOTAL_REQUESTS = 1000
+AUTH_URL = "http://localhost:8000/api/auth/token"
+USERNAME = "sre-intern"
+PASSWORD = "zeotap-local"
+CONCURRENT_WORKERS = 500
+DURATION_SECONDS = 10
 
-async def get_token(client: httpx.AsyncClient) -> str:
-    response = await client.post(TOKEN_URL, json=DEMO_CREDENTIALS)
-    response.raise_for_status()
-    return response.json()["access_token"]
+async def get_token():
+    async with aiohttp.ClientSession() as session:
+        async with session.post(AUTH_URL, json={"username": USERNAME, "password": PASSWORD}) as resp:
+            data = await resp.json()
+            return data["access_token"]
 
-async def send_signal(client: httpx.AsyncClient, token: str, semaphore: asyncio.Semaphore):
-    async with semaphore:
-        component_id = random.choice(["DB_PRIMARY_01", "CACHE_01", "NET_GATEWAY", "AUTH_SVC"])
-        payload = {
-            "component_id": component_id,
-            "component_type": "rdbms",
-            "error_message": "Load test signal",
-            "severity": "P2",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        try:
-            await client.post(API_URL, json=payload, headers={"Authorization": f"Bearer {token}"})
-        except Exception as e:
-            print(f"Error: {e}")
+async def worker(worker_id, token, stats):
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {
+        "component_id": f"LOAD_TEST_{worker_id}",
+        "component_type": "compute",
+        "severity": "P1",
+        "error_message": f"High load simulation from worker {worker_id}",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    end_time = time.time() + DURATION_SECONDS
+    async with aiohttp.ClientSession(headers=headers) as session:
+        while time.time() < end_time:
+            try:
+                start_req = time.time()
+                async with session.post(API_URL, json=payload) as resp:
+                    if resp.status == 202:
+                        stats["success"] += 1
+                    else:
+                        stats["error"] += 1
+                        stats["last_error"] = await resp.text()
+                stats["latencies"].append(time.time() - start_req)
+            except Exception as e:
+                stats["error"] += 1
+                stats["last_error"] = str(e)
+            
+            # Small yield to prevent CPU pinning if needed, 
+            # but we want "tight loop" as requested.
+            # asyncio.sleep(0) is better than nothing for context switching.
+            await asyncio.sleep(0)
 
 async def main():
-    print(f"🚀 Starting load test: {TOTAL_REQUESTS} signals with concurrency {CONCURRENCY}...")
-    start_time = time.perf_counter()
+    print(f"--- Starting Load Test ---")
+    print(f"Workers: {CONCURRENT_WORKERS}")
+    print(f"Duration: {DURATION_SECONDS}s")
     
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        token = await get_token(client)
-        semaphore = asyncio.Semaphore(CONCURRENCY)
-        
-        tasks = [send_signal(client, token, semaphore) for _ in range(TOTAL_REQUESTS)]
-        await asyncio.gather(*tasks)
+    try:
+        token = await get_token()
+    except Exception as e:
+        print(f"Failed to get auth token: {e}")
+        return
+
+    stats = {"success": 0, "error": 0, "latencies": [], "last_error": ""}
     
-    end_time = time.perf_counter()
-    duration = end_time - start_time
-    print(f"✅ Finished! Sent {TOTAL_REQUESTS} signals in {duration:.2f} seconds.")
-    print(f"📈 Average Rate: {TOTAL_REQUESTS / duration:.2f} signals/sec")
+    start_time = time.time()
+    workers = [worker(i, token, stats) for i in range(CONCURRENT_WORKERS)]
+    await asyncio.gather(*workers)
+    total_time = time.time() - start_time
+    
+    avg_throughput = stats["success"] / total_time
+    error_rate = (stats["error"] / (stats["success"] + stats["error"])) * 100 if (stats["success"] + stats["error"]) > 0 else 0
+    
+    avg_latency = (sum(stats["latencies"]) / len(stats["latencies"])) * 1000 if stats["latencies"] else 0
+    p99_latency = sorted(stats["latencies"])[int(len(stats["latencies"]) * 0.99)] * 1000 if stats["latencies"] else 0
+
+    print(f"\n--- Final Report ---")
+    print(f"Total Requests: {stats['success'] + stats['error']}")
+    print(f"Successful: {stats['success']}")
+    print(f"Errors: {stats['error']}")
+    print(f"Error Rate: {error_rate:.2f}%")
+    print(f"Actual Throughput: {avg_throughput:.2f} req/s")
+    print(f"Avg Latency: {avg_latency:.2f} ms")
+    print(f"p99 Latency: {p99_latency:.2f} ms")
+    
+    if stats["last_error"]:
+        print(f"Last Error: {stats['last_error']}")
 
 if __name__ == "__main__":
     asyncio.run(main())
