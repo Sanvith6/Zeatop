@@ -365,9 +365,16 @@ pytest backend/tests/test_circuit_breaker.py -v
 
 ---
 
-## 🚀 Future Roadmap
-
-- **Kafka Integration**: Partitioned message streams for planetary-scale ingestion
-- **Cross-Region Replication**: Survive entire data-center outages
-- **ML Anomaly Detection**: Auto-adjust debounce thresholds from historical patterns
-- **PagerDuty/Slack Integration**: Replace mock alerts with production alerting
+## 10. Known Limitations & Future Roadmap
+ 
+| Area | Current State | Production Improvement |
+|------|--------------|----------------------|
+| **Load Testing** | Theoretical 10k/sec via Redis O(1) architecture | Verify with distributed k6/Locust benchmarking suites |
+| **WebSocket** | Single fallback poll on disconnect | Implement persistent reconnection with exponential backoff |
+| **JWT Depth** | HS256 + Expiry validation | Add refresh tokens, granular scopes (RBAC), and secret rotation |
+| **Database Scaling** | Single-instance PG/Mongo | Implement read-replicas and database sharding |
+| **Alerting** | In-app dashboard only | PagerDuty / Slack / Webhook integrations |
+ 
+---
+ 
+**Final Submission Prepared by Sanvith**

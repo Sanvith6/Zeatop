@@ -195,7 +195,19 @@ GitHub Actions runs on every push to `main` and `develop`:
 > **GitHub Repository**: https://github.com/Sanvith6/zea
 
 ---
-
+ 
+## Known Limitations & Future Roadmap
+ 
+| Area | Current State | Production Improvement |
+|------|--------------|----------------------|
+| **Load Testing** | Theoretical 10k/sec via Redis O(1) architecture | Verify with distributed k6/Locust benchmarking suites |
+| **WebSocket** | Single fallback poll on disconnect | Implement persistent reconnection with exponential backoff |
+| **JWT Depth** | HS256 + Expiry validation | Add refresh tokens, granular scopes (RBAC), and secret rotation |
+| **Database Scaling** | Single-instance PG/Mongo | Implement read-replicas and database sharding |
+| **Alerting** | In-app dashboard only | PagerDuty / Slack / Webhook integrations |
+ 
+---
+ 
 ## Documentation Index
 
 | Document | Description |
