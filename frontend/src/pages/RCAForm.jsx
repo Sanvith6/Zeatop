@@ -20,6 +20,7 @@ export default function RCAForm() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [isSuggesting, setIsSuggesting] = useState(false);
+  const [isFallback, setIsFallback] = useState(false);
 
   useEffect(() => {
     getWorkItem(id).then(setIncident).catch((err) => setError(err.message));
@@ -45,8 +46,11 @@ export default function RCAForm() {
         fix_applied: suggestion.fix_applied,
         prevention_steps: suggestion.prevention_steps
       }));
-      setMessage("AI Suggestion applied successfully!");
-      setTimeout(() => setMessage(""), 3000);
+      setIsFallback(!!suggestion.is_fallback);
+      setMessage(suggestion.is_fallback 
+        ? "Template suggestion applied (AI unavailable)." 
+        : "AI Suggestion applied successfully!");
+      setTimeout(() => setMessage(""), 5000);
     } catch (err) {
       setError(`AI Suggestion failed: ${err.message}`);
     } finally {
@@ -104,6 +108,7 @@ export default function RCAForm() {
           {isSuggesting ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />} 
           {isSuggesting ? "Analyzing..." : "Suggest"}
         </button>
+        {isFallback && <span className="fallback-note">(AI unavailable - template suggestion)</span>}
       </div>
       {error && <div className="error-banner">{error}</div>}
       {message && <div className="success-banner">{message}</div>}

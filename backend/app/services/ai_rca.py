@@ -30,17 +30,21 @@ You MUST respond with a valid JSON object containing:
 Be concise, technical, and authoritative.
 """
 
-async def get_ai_rca_suggestion(component_id: str, component_type: str, severity: str, signals: list[dict[str, Any]]) -> dict[str, str]:
+async def get_ai_rca_suggestion(component_id: str, component_type: str, severity: str, signals: list[dict[str, Any]]) -> dict[str, Any]:
     """
     Calls Groq (Llama 3.3) to generate a high-fidelity RCA suggestion.
+    Returns a professional template fallback if API key is missing or call fails.
     """
+    fallback_data = {
+        "root_cause_category": RootCauseCategory.Infrastructure,
+        "fix_applied": "Identified and restarted the affected service. Verified connectivity to dependent systems and confirmed normal operation restored.",
+        "prevention_steps": "1. Add automated alerting for this failure mode. 2. Implement health checks. 3. Review runbook and update with remediation steps.",
+        "is_fallback": True
+    }
+
     if not settings.groq_api_key or "your_groq_api_key" in settings.groq_api_key:
-        logger.warning("GROQ_API_KEY is missing or using placeholder. Returning fallback RCA.")
-        return {
-            "root_cause_category": RootCauseCategory.Unknown.value,
-            "fix_applied": "Manual investigation required. AI key is not configured.",
-            "prevention_steps": "Set a valid GROQ_API_KEY in the .env.example file to enable automated RCA."
-        }
+        logger.warning("GROQ_API_KEY is missing or using placeholder. Returning template fallback.")
+        return fallback_data
 
     client = AsyncGroq(api_key=settings.groq_api_key)
     
@@ -72,18 +76,16 @@ async def get_ai_rca_suggestion(component_id: str, component_type: str, severity
                 {"role": "user", "content": user_content},
             ],
             response_format={"type": "json_object"},
-            temperature=0.15,  # Low temperature for deterministic SRE analysis
+            temperature=0.15,
             max_tokens=500,
         )
         
         IMS_AI_RCA_REQUESTS_TOTAL.labels(status="success").inc()
-        return json.loads(completion.choices[0].message.content)
+        result = json.loads(completion.choices[0].message.content)
+        result["is_fallback"] = False
+        return result
     except Exception as e:
         logger.error(f"Groq API Error: {str(e)}")
         IMS_AI_RCA_REQUESTS_TOTAL.labels(status="failure").inc()
-        return {
-            "root_cause_category": RootCauseCategory.Unknown.value,
-            "fix_applied": f"AI service error: {str(e)}",
-            "prevention_steps": "Verify Groq API status and check your API key quota."
-        }
+        return fallback_data
 

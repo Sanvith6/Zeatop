@@ -89,6 +89,8 @@ services:
       ADAPTIVE_THROTTLE_THRESHOLD: "0.7"
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -129,6 +131,8 @@ services:
       CB_FAILURE_THRESHOLD: "5"
       CB_RECOVERY_TIMEOUT: "30"
       DB_CALL_TIMEOUT: "5"
+    volumes:
+      - ./backend:/app
     depends_on:
       postgres:
         condition: service_healthy

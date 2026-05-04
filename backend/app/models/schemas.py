@@ -97,6 +97,19 @@ class RCAResponse(BaseModel):
     submitted_at: datetime
     mttr_minutes: float
     model_config = ConfigDict(from_attributes=True)
+ 
+    @field_validator("incident_start", "incident_end", "submitted_at", mode="before")
+    @classmethod
+    def ensure_utc(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            if not v.endswith("Z") and "+" not in v:
+                v += "Z"
+            return v
+        if isinstance(v, datetime):
+            if v.tzinfo is None:
+                return v.replace(tzinfo=timezone.utc)
+            return v.astimezone(timezone.utc)
+        return v
 
 
 class StatusHistoryResponse(BaseModel):
@@ -118,6 +131,19 @@ class WorkItemResponse(BaseModel):
     rca_id: UUID | None = None
     mttr_minutes: float | None = None
     model_config = ConfigDict(from_attributes=True)
+ 
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def ensure_utc(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            if not v.endswith("Z") and "+" not in v:
+                v += "Z"
+            return v
+        if isinstance(v, datetime):
+            if v.tzinfo is None:
+                return v.replace(tzinfo=timezone.utc)
+            return v.astimezone(timezone.utc)
+        return v
 
 
 class WorkItemDetailResponse(WorkItemResponse):
@@ -130,3 +156,4 @@ class AISuggestionResponse(BaseModel):
     root_cause_category: RootCauseCategory
     fix_applied: str
     prevention_steps: str
+    is_fallback: bool = False

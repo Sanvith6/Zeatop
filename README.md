@@ -348,6 +348,38 @@ pytest backend/tests/test_circuit_breaker.py -v
 
 ---
 
+---
+ 
+## 11. Load Test Results
+ 
+Testing was performed using a high-concurrency benchmark script (`scripts/load_test.py`) against the Docker-containerized environment.
+ 
+| Metric | Measured Value (Local) |
+|--------|----------------|
+| **Peak Ingestion Rate** | **928.1 req/s** (100 concurrent workers) |
+| **Avg API Latency** | 105.2 ms |
+| **p99 API Latency** | 234.3 ms |
+| **Success Rate** | 100% |
+ 
+### Scaling to 10,000 Signals/sec
+ 
+The current benchmark (~928 req/s) was measured on a single local development machine. The architecture is designed to scale horizontally:
+ 
+| Deployment | Expected Throughput |
+|------------|-------------------|
+| 1x backend (local) | ~1,000 req/s (measured) |
+| 3x backend + load balancer | ~3,000 req/s |
+| 10x backend + Redis Cluster | ~10,000 req/s |
+ 
+To run a distributed load test in production:
+1. Deploy with `docker-compose --scale backend=3`
+2. Use k6 or Locust with 500+ concurrent virtual users
+3. Monitor Redis queue depth via the Grafana dashboard
+ 
+The bottleneck is PostgreSQL write throughput, not the ingestion layer.
+ 
+---
+ 
 ## 📂 Documentation Index
 
 | Document | Description |
@@ -363,7 +395,7 @@ pytest backend/tests/test_circuit_breaker.py -v
 | [LOAD_TEST_RESULTS.md](docs/LOAD_TEST_RESULTS.md) | Load test results with real numbers |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture reference |
 
-## 10. Known Limitations & Future Roadmap
+## 12. Known Limitations & Future Roadmap
  
 | Area | Current State | Production Improvement |
 |------|--------------|----------------------|
