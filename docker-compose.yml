@@ -61,6 +61,7 @@ services:
     restart: unless-stopped
     env_file:
       - .env.example
+      - .env
     environment:
       POSTGRES_DSN: postgresql+asyncpg://ims:ims_password@postgres:5432/ims
       MONGO_DSN: mongodb://mongo:27017
@@ -111,6 +112,7 @@ services:
       disable: true
     env_file:
       - .env.example
+      - .env
     environment:
       POSTGRES_DSN: postgresql+asyncpg://ims:ims_password@postgres:5432/ims
       MONGO_DSN: mongodb://mongo:27017
