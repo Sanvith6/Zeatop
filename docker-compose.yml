@@ -86,7 +86,6 @@ services:
       QUEUE_WARN_THRESHOLD: "0.5"
       QUEUE_CRITICAL_THRESHOLD: "0.8"
       ADAPTIVE_THROTTLE_THRESHOLD: "0.7"
-      GROQ_API_KEY: ${GROQ_API_KEY:-your_groq_api_key_here}
     ports:
       - "8000:8000"
     depends_on:
@@ -128,7 +127,6 @@ services:
       CB_FAILURE_THRESHOLD: "5"
       CB_RECOVERY_TIMEOUT: "30"
       DB_CALL_TIMEOUT: "5"
-      GROQ_API_KEY: ${GROQ_API_KEY:-your_groq_api_key_here}
     depends_on:
       postgres:
         condition: service_healthy
