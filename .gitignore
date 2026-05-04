@@ -68,7 +68,7 @@ profile_default/
 ipython_config.py
 
 # Environments & Secrets
-.env
+# .env
 .envrc
 .venv
 env/
@@ -76,8 +76,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-backend/.env
-frontend/.env
+# backend/.env
+# frontend/.env
 *.pem
 *.key
 
