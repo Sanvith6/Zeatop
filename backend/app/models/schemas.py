@@ -13,6 +13,9 @@ class ComponentType(StrEnum):
     queue = "queue"
     nosql = "nosql"
     mcp = "mcp"
+    external = "external"
+    compute = "compute"
+    storage = "storage"
 
 
 class Severity(StrEnum):

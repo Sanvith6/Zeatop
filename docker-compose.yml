@@ -60,7 +60,7 @@ services:
     container_name: backend
     restart: unless-stopped
     env_file:
-      - .env
+      - .env.example
     environment:
       POSTGRES_DSN: postgresql+asyncpg://ims:ims_password@postgres:5432/ims
       MONGO_DSN: mongodb://mongo:27017
@@ -110,7 +110,7 @@ services:
     healthcheck:
       disable: true
     env_file:
-      - .env
+      - .env.example
     environment:
       POSTGRES_DSN: postgresql+asyncpg://ims:ims_password@postgres:5432/ims
       MONGO_DSN: mongodb://mongo:27017

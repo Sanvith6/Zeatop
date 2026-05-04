@@ -78,7 +78,7 @@ export default function IncidentDetail() {
             Submit RCA
           </button>
         )}
-        {incident.status === "RESOLVED" && incident.rca && (
+        {incident.status === "RESOLVED" && (
           <button type="button" className="close-button" onClick={() => transition("CLOSED")}>
             <Lock size={16} /> Close Incident
           </button>

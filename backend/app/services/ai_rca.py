@@ -12,40 +12,56 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 SYSTEM_PROMPT = """
-You are an expert SRE (Site Reliability Engineer). Your task is to analyze incident signals and provide a Root Cause Analysis (RCA).
-You will be given the component ID, type, severity, and a list of error messages from signals.
+You are a Staff Site Reliability Engineer (SRE). Your objective is to perform a Root Cause Analysis (RCA) on a production incident.
+You will be provided with incident metadata (Component, Severity) and a high-velocity stream of error signals.
 
-Provide your response in JSON format with exactly these fields:
-1. root_cause_category: One of "Infrastructure", "Code Deployment", "Configuration Change", "External Dependency", "Unknown"
-2. fix_applied: A concise description of the likely fix.
-3. prevention_steps: Actionable steps to prevent this in the future.
+CRITICAL INSTRUCTIONS:
+1. Identify the 'Direct Cause' (the immediate failure) and the 'Root Cause' (the underlying systemic issue).
+2. Categorize the incident into exactly one of: "Infrastructure", "Code Deployment", "Configuration Change", "External Dependency", "Unknown".
+3. Suggest a 'Fix Applied' that follows SRE best practices (e.g., progressive rollout, circuit breaking, horizontal scaling).
+4. Provide 'Prevention Steps' aimed at improving the system's MTBF (Mean Time Between Failures) and observability.
 
-Be realistic and technical.
+RESPONSE FORMAT:
+You MUST respond with a valid JSON object containing:
+- root_cause_category: (string)
+- fix_applied: (string)
+- prevention_steps: (string)
+
+Be concise, technical, and authoritative.
 """
 
 async def get_ai_rca_suggestion(component_id: str, component_type: str, severity: str, signals: list[dict[str, Any]]) -> dict[str, str]:
     """
-    Calls Groq to get an RCA suggestion based on incident metadata and signals.
+    Calls Groq (Llama 3.3) to generate a high-fidelity RCA suggestion.
     """
-    if not settings.groq_api_key:
-        logger.warning("GROQ_API_KEY not configured. Returning static fallback.")
+    if not settings.groq_api_key or "your_groq_api_key" in settings.groq_api_key:
+        logger.warning("GROQ_API_KEY is missing or using placeholder. Returning fallback RCA.")
         return {
             "root_cause_category": RootCauseCategory.Unknown.value,
-            "fix_applied": "No AI key provided. Manual investigation required.",
-            "prevention_steps": "Configure AI service for automated suggestions."
+            "fix_applied": "Manual investigation required. AI key is not configured.",
+            "prevention_steps": "Set a valid GROQ_API_KEY in the .env.example file to enable automated RCA."
         }
 
     client = AsyncGroq(api_key=settings.groq_api_key)
     
-    # Consolidate signal data for the prompt
-    error_summary = "\n".join(list(set([s.get("error_message", "Unknown error") for s in signals[:10]])))
+    # Extract unique error patterns to reduce token noise while keeping context
+    error_patterns = []
+    seen = set()
+    for s in signals:
+        msg = s.get("error_message", "Unknown")
+        if msg not in seen:
+            error_patterns.append(msg)
+            seen.add(msg)
     
     user_content = f"""
-    Incident Details:
-    - Component: {component_id} ({component_type})
-    - Severity: {severity}
-    - Signal Error Messages:
-    {error_summary}
+    [INCIDENT CONTEXT]
+    Component ID: {component_id}
+    Component Type: {component_type}
+    Severity Level: {severity}
+    Signal Count: {len(signals)}
+    
+    [OBSERVED ERROR PATTERNS]
+    {chr(10).join(error_patterns[:15])}
     """
 
     try:
@@ -56,17 +72,18 @@ async def get_ai_rca_suggestion(component_id: str, component_type: str, severity
                 {"role": "user", "content": user_content},
             ],
             response_format={"type": "json_object"},
-            temperature=0.3,
+            temperature=0.15,  # Low temperature for deterministic SRE analysis
+            max_tokens=500,
         )
         
-        content = completion.choices[0].message.content
         IMS_AI_RCA_REQUESTS_TOTAL.labels(status="success").inc()
-        return json.loads(content)
+        return json.loads(completion.choices[0].message.content)
     except Exception as e:
-        logger.error(f"Error calling Groq: {str(e)}")
+        logger.error(f"Groq API Error: {str(e)}")
         IMS_AI_RCA_REQUESTS_TOTAL.labels(status="failure").inc()
         return {
             "root_cause_category": RootCauseCategory.Unknown.value,
-            "fix_applied": f"Error during AI analysis: {str(e)}",
-            "prevention_steps": "Investigate logs and perform manual RCA."
+            "fix_applied": f"AI service error: {str(e)}",
+            "prevention_steps": "Verify Groq API status and check your API key quota."
         }
+

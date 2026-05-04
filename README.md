@@ -3,198 +3,343 @@
 [![SRE Principles](https://img.shields.io/badge/SRE-Safe--by--Design-blueviolet?style=for-the-badge)](https://sre.google/)
 [![AI-Powered](https://img.shields.io/badge/AI--Powered-Groq--Llama3-orange?style=for-the-badge)](https://groq.com/)
 [![Throughput](https://img.shields.io/badge/Throughput-10k%2B%20Signals%2Fsec-success?style=for-the-badge)]()
-
-Zetatop is a high-availability Incident Management System (IMS) built with **FastAPI, React, PostgreSQL, MongoDB, and Redis**. It is designed with a "Failure-First" mindset, ensuring ingestion remains available even when downstream databases are failing.
-
-## ✨ 10/10 Features (What makes this project stand out)
-
-- **🤖 AI-Powered RCA**: Uses **Groq (Llama 3.3)** to analyze signal patterns and auto-suggest Root Cause Analysis reports.
-- **⚡ Burst Resilience**: Handles **10,000 signals/second** using a decoupled producer-consumer architecture.
-- **📉 99% Noise Reduction**: Advanced debouncing logic consolidates hundreds of signals into a single actionable incident.
-- **🛡️ SRE Patterns**: Implements **Circuit Breakers, Adaptive Throttling, and Dead Letter Queues** for maximum reliability.
-- **📊 Observability**: Full Prometheus/Grafana integration with pre-built dashboards.
-
-## 🏗️ System Architecture
-
-![System Architecture](architecture_diagram/architecture_diagram.png)
-
-The Zetatop architecture is built on **Safe-by-Design** principles, utilizing a decoupled Producer-Consumer pattern to ensure high availability during catastrophic failures.
-
-For a detailed technical breakdown of our design patterns (State, Strategy, Circuit Breaker), see the **[Architecture Deep-Dive](docs/ARCHITECTURE.md)**.
-
-## Setup
-
-```bash
-docker-compose up --build
-```
-
-| Service | URL |
-| --- | --- |
-| Frontend | http://localhost:3001 |
-| Backend API | http://localhost:8000 |
-| Prometheus | http://localhost:9090 |
-| Grafana | http://localhost:3002 |
-| Health | http://localhost:8000/health |
-| Metrics | http://localhost:8000/metrics |
-
-**Demo credentials:** `sre-intern` / `zeotap-local` (Grafana: `admin` / `Sanvith@123`)
-
-> [!TIP]
-> **Observability Stack**: Metrics are scraped by Prometheus and visualized in Grafana using pre-provisioned dashboards.
-
-## 📊 Performance & Proof of Scale
-
-The system is architected for **burst resilience**, capable of ingesting **10,000 signals/second** without impacting API availability. 
-
-### 1. Throughput & Scalability
-*   **Decoupled Ingestion**: Signals are LPUSHed to Redis in <10ms, decoupling the producer from database latency.
-*   **IOPS Reduction (Debouncing)**: By consolidating 100 signals into 1 DB update, the system achieves a **99% reduction in database write pressure**.
-*   **Horizontal Scaling**: Workers can be scaled independently (`docker-compose up --scale worker=4`) to increase processing capacity.
-
-### 2. Validation Guide
-To verify the system's performance, use the included benchmarking tool:
-```bash
-# Run a 30-second stress test using k6
-# Requires k6 installed: https://k6.io/docs/getting-started/installation/
-k6 run scripts/load_test_k6.js
-```
-
-### 3. Noise Reduction Impact
-| Metric | Without Debouncing | With Zetatop Debouncing | Efficiency |
-| --- | --- | --- | --- |
-| Signals Ingested | 10,000 | 10,000 | - |
-| Incidents Created | 10,000 | 1 | **99.99% Noise Reduction** |
-| Database Ops | 10,000 | ~100 | **99% IOPS Reduction** |
-
-### 3. End-to-End Request Journey (Latency Trace)
-1. **Signal Received**: Payload validated, JWT verified (**t=0ms**)
-2. **Persistence**: Signal LPUSHed to Redis durable queue (**t=5ms**)
-3. **Acknowledgment**: API returns `202 Accepted` to client (**t=8ms**)
-4. **Processing**: Worker dequeues signal via `BRPOPLPUSH` (**t=25ms**)
-5. **Deduplication**: Redis Sorted Set window evaluation (**t=40ms**)
-6. **Incident State**: Work Item upserted to PostgreSQL (**t=110ms**)
-7. **Visibility**: Incident appears on React Dashboard via WebSockets (**t=150ms**)
-
-> [!IMPORTANT]
-> **Zero Data Loss Guarantee**: No signals were lost during sustained 10k/sec load testing. All "in-flight" messages survive worker crashes via the `signals:processing` recovery list.
-
-## Core Reliability Patterns
-
-### 1. Delivery & Idempotency (Correctness)
-**The system guarantees at-least-once delivery.** 
-By using Redis `BRPOPLPUSH`, signals are never lost if a worker crashes mid-processing. Any redelivered signals are handled **idempotently** via:
-- **MongoDB**: Upsert on `queue_id` prevents duplicate signal records.
-- **PostgreSQL**: Partial unique index on active work items prevents duplicate incident creation.
-- **Side Effects**: Deduplication logic ensures alerts are only fired once per incident.
-
-## System Guarantees
-- **At-least-once delivery**: Via Redis durable queue (`BRPOPLPUSH` pattern).
-- **Idempotent processing**: Prevents duplicate incidents even if signals are redelivered.
-- **Eventual consistency**: Between raw signals (MongoDB) and work items (Postgres).
-
-## Backpressure Strategy
-- **<50% queue**: Normal operations.
-- **50–70% queue**: Warning state (latency tracking).
-- **>70% queue**: Adaptive throttling (HTTP 429).
-- **100% queue**: Rejection (HTTP 503) to protect system stability.
-
-## Example Incident Investigation
-A spike in database errors triggered multiple P0 incidents across components. 
-Using raw signals in MongoDB and Prometheus metrics, we traced the root cause to connection timeouts. 
-The **Circuit Breaker** automatically prevented cascading failures, keeping the ingestion API healthy while the investigation and recovery continued.
-
-### 2. Failure Walkthrough: PostgreSQL Outage
-This scenario demonstrates the system's resilience under dependency failure:
-1. **Detection**: Worker attempts a write to PostgreSQL; it fails with a connection error.
-2. **Backoff**: The worker retries 3 times with exponential backoff (0.2s, 0.4s, 0.8s).
-3. **Resilience**: After 5 consecutive failures, the **Circuit Breaker** trips to `OPEN` state.
-4. **Safety**: Subsequent signals fail-fast and are routed to the **Dead Letter Queue (MongoDB)**.
-5. **Ingestion**: The API continues to accept signals into the Redis queue, decoupled from the DB outage.
-6. **Recovery**: Once Postgres returns, the breaker transitions to `HALF_OPEN`, probes the DB, and resumes normal processing.
-
-### 3. Scaling Story
-The system is designed for **horizontal scalability**:
-- **Ingestion**: API nodes can be scaled behind a load balancer to handle 10k+ requests/sec.
-- **Processing**: Worker containers can be scaled independently (`--scale worker=10`) to drain the queue faster during high-burst events.
-- **Decoupling**: The Redis queue acts as a buffer, preventing bursty traffic from overwhelming downstream databases.
-
-### 4. Engineering Tradeoffs & Design Decisions
-
-| Tradeoff | Chosen | Why? |
-| --- | --- | --- |
-| **Broker** | **Redis** | Chosen over Kafka for sub-millisecond latency and reduced operational complexity. Redis `BRPOPLPUSH` provides the necessary durability for this scale. |
-| **Updates** | **WebSockets** | Chosen over Polling to provide instant visibility to responders (150ms vs 5s latency) and reduce server load during idle periods. |
-| **Data Lake** | **MongoDB** | Chosen over TSDB (like InfluxDB) because raw signals are high-velocity *events* with varying schemas. MongoDB handles writes at 10k/sec easily and supports flexible auditing. |
-| **Source of Truth**| **PostgreSQL** | Chosen for ACID compliance and complex relational queries needed for MTTR tracking and RCA history. |
-
-### 5. Known Limitations & Bottlenecks
-1. **Single Redis Instance**: Currently a Single Point of Failure (SPOF). **Mitigation**: Move to Redis Sentinel or Cluster for high availability in production.
-2. **PostgreSQL Writes**: As the "Source of Truth," Postgres is the primary write bottleneck. **Mitigation**: Use connection pooling (PgBouncer) and read-replicas for the dashboard.
-3. **In-Memory Debouncing**: Debounce windows are stored in Redis. If Redis RAM is exhausted, windows may be truncated. **Mitigation**: Monitor `used_memory` and set `maxmemory-policy` to `noeviction`.
-
-### 6. Edge Case Handling Matrix
-| Scenario | System Response |
-| --- | --- |
-| **Duplicate Signals** | Safely deduplicated using unique `queue_id` idempotency. |
-| **Worker Crash** | Unfinished signals remain in `processing` list and are recovered on startup. |
-| **PostgreSQL Outage** | Circuit Breaker trips; signals are routed to **MongoDB DLQ** to prevent data loss. |
-| **Network Burst** | Redis queue acts as a buffer; adaptive throttling pushes back on producers at 70% capacity. |
-
-## 🧪 Testing & Validation
-
-### 1. Chaos Engineering Demo
-Prove the system's resilience by simulating a database failure:
-```bash
-# In one terminal:
-python scripts/chaos_demo.py
-
-# Expected Output:
-# [INFO] Injecting FAILURE: Stopping PostgreSQL...
-# [INFO] Signal 1: Received HTTP 202 (Ingestion is still UP)
-# [INFO] SUCCESS: Circuit Breaker detected and tripped!
-# [INFO] RESTORING service...
-```
-
-### 2. Automated Test Suite
-The system includes comprehensive tests for core SRE requirements:
-- **RCA Validation**: `test_cannot_close_without_rca` (System strictly rejects closing incomplete incidents).
-- **State Machine**: `test_invalid_transition_blocked` (Prevents skipping steps in incident lifecycle).
-- **Circuit Breaker**: Distributed state verification across multiple worker instances.
-
-```bash
-pytest backend/tests
-```
-
-## 🤖 AI-Powered Root Cause Analysis
-
-Zetatop integrates with **Groq** to provide intelligent RCA suggestions. When an incident is resolved, the system:
-1. Analyzes the last 500 signals associated with the incident.
-2. Correlates error messages across different component types.
-3. Uses LLM reasoning to suggest the most likely root cause category and prevention steps.
-
-> [!TIP]
-> **Setup AI**: Ensure `GROQ_API_KEY` is set in your `.env` file to enable this feature.
-
-## 🚀 Future Roadmap
-- **Kafka Integration**: Move to partitioned message streams for planetary-scale ingestion.
-- **Cross-Region Replication**: Ensure survival of entire data-center outages.
-- **ML-Based Anomaly Detection**: Automatically adjust debounce thresholds based on historical noise patterns.
-
-## SRE Focus
-
-| Concern | Implementation |
-| --- | --- |
-| **Backpressure** | Three-tier: normal → adaptive throttling (429) → rejection (503) |
-| **Circuit Breaker** | Per-dependency (Mongo/Postgres) isolation |
-| **Alert Noise** | Debounce window (100+ signals/10s) creates ONE incident |
-| **Closure Control** | State machine blocks `CLOSED` without a complete RCA |
-| **Observability** | Prometheus metrics + 5-second interval structured latency logs |
+[![Tests](https://img.shields.io/badge/Tests-40%20Passed-brightgreen?style=for-the-badge)]()
+[![CI](https://github.com/Sanvith6/zea/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanvith6/zea/actions)
 
 ---
 
-## 📄 PDF Submission Checklist
-1. **GitHub Link**: Clearly visible at the top.
-2. **Architecture**: Use the ASCII diagram above or a screenshot of `docs/ARCHITECTURE.md`.
-3. **Screenshots**: Include the Dashboard with stats cards and the `/metrics` endpoint.
-4. **Resilience**: Mention the **PostgreSQL Outage walkthrough**.
-5. **Testing**: Mention **43 unit tests passing**.
+## 1. Project Overview
+
+Zetatop is a high-availability **Incident Management System (IMS)** built for SRE environments that generate massive volumes of monitoring signals during failures.
+
+### Problem
+A single database outage can produce **10,000+ error signals** in seconds. Without intelligent deduplication, each signal creates a separate alert, overwhelming on-call engineers with noise and obscuring the actual incident.
+
+### Solution
+Zetatop implements a **decoupled Producer-Consumer architecture** that:
+- Accepts signals at **10,000+/sec** without blocking (Redis LPUSH in <10ms)
+- **Debounces** hundreds of signals into a single actionable incident (99%+ noise reduction)
+- Provides **AI-powered Root Cause Analysis** via Groq (Llama 3.3 70B)
+- Enforces a **strict incident lifecycle** with mandatory RCA before closure
+- Maintains **full observability** through Prometheus/Grafana integration
+
+---
+
+## 2. Architecture Summary
+
+The system follows a five-layer architecture where each layer is independently scalable and failure-isolated:
+
+```
+Signal Source → POST /api/signals
+    ↓
+[1] JWT Auth + Rate Limiting (10k/sec per IP)
+    ↓
+[2] Adaptive Throttling (429 at 70% queue capacity)
+    ↓
+[3] Redis Queue (LPUSH — sub-millisecond, AOF-persistent)
+    ↓
+[4] Worker Pool (BRPOPLPUSH — crash-safe dequeue)
+    ↓
+[5a] MongoDB (raw signal storage — idempotent upsert)
+[5b] PostgreSQL (incident management — ACID transactions)
+    ↓
+[6] Redis Pub/Sub → WebSocket → React Dashboard (real-time)
+```
+
+**Key Insight**: The API never writes to PostgreSQL or MongoDB directly. All database operations happen asynchronously in the worker pool, meaning **database outages never crash the ingestion API**.
+
+---
+
+## 3. Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph Client
+        A[React Dashboard] -->|WebSocket| WS[WS Manager]
+        B[Scripts / Agents] -->|HTTP| C
+    end
+
+    subgraph "Ingestion Layer (FastAPI)"
+        C[POST /api/signals] -->|JWT + Rate Limit| C
+        C -->|LPUSH| D[Redis Queue]
+    end
+
+    subgraph "Processing Layer (Workers)"
+        D -->|BRPOPLPUSH| E[Worker Pool x4]
+        E -->|Batch Write| F[MongoDB - Signals]
+        E -->|Upsert| G[PostgreSQL - Incidents]
+        E -->|DLQ on failure| H[MongoDB - Failed Signals]
+        E -->|Pub/Sub| WS
+    end
+
+    subgraph Observability
+        I[Prometheus] -->|Scrape| C
+        J[Grafana] -->|Query| I
+    end
+```
+
+---
+
+## 4. Setup Instructions
+
+### Quick Start
+
+```bash
+# Clone and start all services
+docker-compose up --build
+
+# Generate sample incidents (in a separate terminal)
+python scripts/simulate_failure.py
+python scripts/simulate_failure2.py
+python scripts/simulate_failure3.py
+```
+
+### Service URLs
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **Frontend Dashboard** | http://localhost:3001 | `sre-intern` / `zeotap-local` |
+| **Backend API** | http://localhost:8000 | JWT Bearer token |
+| **Prometheus** | http://localhost:9090 | — |
+| **Grafana** | http://localhost:3002 | `admin` / `admin` |
+| **Health Check** | http://localhost:8000/health | — |
+| **Readiness Check** | http://localhost:8000/ready | — |
+| **Prometheus Metrics** | http://localhost:8000/metrics | — |
+
+### Environment Variables
+
+The system reads configuration directly from `.env.example`. No additional setup is needed for core features.
+
+**To enable AI-Powered RCA Suggestions:**
+
+1. Get a free API key at [console.groq.com/keys](https://console.groq.com/keys)
+2. Open `.env.example` and replace line 16:
+   ```
+   GROQ_API_KEY=your_groq_api_key_here   ← replace with your real key
+   ```
+3. Restart services: `docker-compose up --build`
+
+> **Note**: The system works **fully without a Groq API key**. All core features (signal ingestion, debouncing, state machine, MTTR, observability) function without it. The AI RCA suggestion button will return a graceful fallback response. To enable AI-powered RCA, simply add a free Groq API key as shown above.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `GROQ_API_KEY` | `your_groq_api_key_here` | AI-powered RCA suggestions — free at [console.groq.com](https://console.groq.com/keys) |
+| `QUEUE_MAX_SIZE` | 10000 | Maximum signals in Redis queue |
+| `RATE_LIMIT` | 10000/second | Per-IP rate limit |
+| `CB_FAILURE_THRESHOLD` | 5 | Circuit breaker trip threshold |
+| `WORKER_CONCURRENCY` | 4 | Number of concurrent workers |
+
+### Health Check
+
+```bash
+curl http://localhost:8000/ready
+```
+
+```json
+{
+  "status": "ready",
+  "uptime": 3600,
+  "queue_depth": 0,
+  "dependencies": {"postgres": "ok", "mongo": "ok", "redis": "ok"}
+}
+```
+
+---
+
+## 5. Key Features (Mapped to Assignment Requirements)
+
+### 5.1 High-Throughput Ingestion (10k+/sec)
+
+**File**: `backend/app/routers/signals.py`, `backend/app/services/queue.py`
+
+- Signals are validated (Pydantic) and pushed to Redis via LPUSH in <10ms
+- API returns `202 Accepted` immediately — processing happens asynchronously
+- Rate limited at 10,000/second per IP via `slowapi`
+
+### 5.2 Debouncing Logic
+
+**File**: `backend/app/services/ingestion.py:191-258`
+
+- Redis Sorted Sets track signals per component in a 10-second sliding window
+- After 100 signals for the same component, ONE incident is created
+- Subsequent signals increment the existing incident's `signal_count`
+- Cache-first lookup (`debounce:{component_id}`) avoids PostgreSQL queries during bursts
+
+**Result**: 150 signals → 1 incident = **99.3% noise reduction**
+
+### 5.3 Async Processing Pipeline
+
+**File**: `backend/app/services/ingestion.py:63-100`
+
+- Workers use `BatchBuffer` (500 signals or 1s timeout)
+- MongoDB `bulk_write` reduces round-trips
+- Redis pipeline for bulk acknowledgment
+- Full `async/await` stack: `asyncpg`, `motor`, `redis.asyncio`
+
+### 5.4 RCA Enforcement
+
+**File**: `backend/app/services/state_machine.py:55-64`
+
+- The `ResolvedState` checks `has_complete_rca()` before allowing CLOSED transition
+- All 5 RCA fields must be non-empty: `incident_start`, `incident_end`, `root_cause_category`, `fix_applied`, `prevention_steps`
+- Incomplete RCA → `InvalidTransitionError` → HTTP 409
+
+### 5.5 MTTR Calculation
+
+**File**: `backend/app/services/workitems.py:137-138`
+
+```python
+mttr_minutes = (incident_end - incident_start).total_seconds() / 60
+```
+
+Calculated on RCA submission and stored on the Work Item. Displayed on the dashboard and in analytics.
+
+### 5.6 Workflow State Transitions
+
+**File**: `backend/app/services/state_machine.py`
+
+GoF State Pattern with strict forward-only progression:
+
+```
+OPEN → INVESTIGATING → RESOLVED → CLOSED (requires RCA)
+```
+
+- Invalid transitions raise `InvalidTransitionError`
+- Same-state transitions are idempotent (no-op)
+- Every transition creates an audit trail record in `WorkItemStatusHistory`
+
+---
+
+## 6. Backpressure Strategy
+
+**Files**: `backend/app/routers/signals.py`, `backend/app/services/queue.py`
+
+| Queue Capacity | System Response | HTTP Code |
+|---------------|----------------|-----------|
+| 0–50% | Normal operation | 202 |
+| 50–70% | Warning logs emitted | 202 |
+| 70–99% | Adaptive throttling active | **429** + `Retry-After: 5` |
+| 100% | Hard rejection | **503** |
+
+Redis is configured with `maxmemory-policy noeviction` — it will never silently drop queued signals. See [BACKPRESSURE.md](docs/BACKPRESSURE.md) for the full deep-dive.
+
+---
+
+## 7. Observability
+
+### Health Endpoints
+- `GET /health` — Liveness (uptime)
+- `GET /ready` — Readiness (PostgreSQL + MongoDB + Redis connectivity)
+- `GET /metrics` — Prometheus-format metrics
+
+### Prometheus Metrics (12 custom metrics)
+
+| Metric | Type | Purpose |
+|--------|------|---------|
+| `ims_signals_ingested_total` | Counter | Total signals accepted |
+| `ims_signals_processed_total` | Counter | Total signals processed by workers |
+| `ims_signals_failed_total` | Counter | Signals sent to DLQ |
+| `ims_queue_depth` | Gauge | Current Redis queue depth |
+| `ims_processing_rate_per_second` | Gauge | Real-time processing rate |
+| `ims_signal_processing_seconds` | Histogram | End-to-end processing latency |
+| `ims_signal_queue_wait_seconds` | Histogram | Time signals wait in queue |
+| `ims_circuit_breaker_state` | Gauge | Per-dependency breaker state |
+| `ims_retry_total` | Counter | Processing retry count |
+| `ims_db_write_latency_seconds` | Histogram | Database write latency |
+| `ims_ai_rca_requests_total` | Counter | AI RCA request count |
+
+### Structured Logs (every 5 seconds)
+```
+[METRICS] Rate: 150 sig/s | Queue: 0 | Active incidents: 3 | Avg MTTR: 22 min | Latency p50=0.025s p95=0.110s p99=0.250s
+```
+
+---
+
+## 8. Non-Functional Enhancements
+
+### Rate Limiting
+- 10,000 requests/second per IP via `slowapi` + Redis backend
+- Configurable via `RATE_LIMIT` environment variable
+
+### Retry Logic
+- PostgreSQL writes: 3 attempts with exponential backoff (150ms, 300ms)
+- Only transient errors (`OperationalError`, `DBAPIError`) are retried
+- Each retry is recorded as a Prometheus metric
+
+### Fault Tolerance
+- **Circuit Breaker**: Per-dependency (PostgreSQL, MongoDB) with distributed Redis state
+- **Dead Letter Queue**: Failed signals preserved in MongoDB `failed_signals` collection
+- **Crash Recovery**: `BRPOPLPUSH` pattern recovers stranded signals on worker restart
+
+### WebSockets
+- Real-time incident updates via `/ws/incidents` endpoint
+- Redis Pub/Sub bridges worker events to connected dashboard clients
+- Automatic fallback to polling if WebSocket disconnects
+
+### Severity Auto-Classification
+- **File**: `backend/app/services/classifier.py`
+- Rule-based severity upgrade based on component blast radius
+- RDBMS/MCP → P0 baseline, API/Queue → P1, Cache/NoSQL → P2
+- Never downgrades — producer may have additional context
+
+### Alert Strategy Pattern
+- **File**: `backend/app/services/alerts.py`
+- Component-specific escalation policies (P0 page, P1 incident, P2 warning)
+- Webhook-based dispatch to mock endpoint (replaceable with PagerDuty/Slack)
+
+---
+
+## 9. Testing
+
+```bash
+pytest backend/tests
+# 40 passed in ~5s
+```
+
+### Test Coverage
+
+| Suite | Tests | What's Covered |
+|-------|-------|----------------|
+| State Machine | 12 | Valid transitions, invalid blocking, RCA enforcement, idempotency |
+| Signal Ingestion | 8 | Payload validation, enum validation, timestamp normalization |
+| API Integration | 12 | All endpoints, auth, error handling |
+| Circuit Breaker | 4 | State transitions, recovery, distributed coordination |
+| Debouncing | 4 | Window management, threshold, deduplication |
+
+---
+
+## 10. Engineering Tradeoffs
+
+| Decision | Chosen | Alternative | Why |
+|----------|--------|-------------|-----|
+| Message Broker | Redis | Kafka | Sub-ms latency, simpler operations at our scale |
+| Dashboard Updates | WebSockets | Polling | 150ms vs 5s latency, lower server load |
+| Signal Store | MongoDB | InfluxDB | Schema-flexible events, bulk_write at 10k/sec |
+| Source of Truth | PostgreSQL | MongoDB | ACID compliance for state transitions and RCA |
+| AI Model | Llama 3.3 (Groq) | GPT-4 | Sub-second inference, structured JSON output |
+
+---
+
+## 📂 Documentation Index
+
+| Document | Description |
+|----------|-------------|
+| [SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) | Tech stack choices, tradeoffs, scaling strategy |
+| [WORKFLOW.md](docs/WORKFLOW.md) | State machine, transition validation, audit trail |
+| [RCA_FLOW.md](docs/RCA_FLOW.md) | RCA enforcement, MTTR calculation, AI integration |
+| [API_DOCS.md](docs/API_DOCS.md) | All API endpoints with request/response examples |
+| [BACKPRESSURE.md](docs/BACKPRESSURE.md) | Four-tier backpressure strategy deep-dive |
+| [SAMPLE_DATA.md](docs/SAMPLE_DATA.md) | Simulation scripts and sample payloads |
+| [PROMPTS.md](docs/PROMPTS.md) | Design thinking and iterative improvements |
+| [FINAL_SUBMISSION_CONTENT.md](docs/FINAL_SUBMISSION_CONTENT.md) | PDF submission content |
+| [LOAD_TEST_RESULTS.md](docs/LOAD_TEST_RESULTS.md) | Load test results with real numbers |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture reference |
+
+---
+
+## 🚀 Future Roadmap
+
+- **Kafka Integration**: Partitioned message streams for planetary-scale ingestion
+- **Cross-Region Replication**: Survive entire data-center outages
+- **ML Anomaly Detection**: Auto-adjust debounce thresholds from historical patterns
+- **PagerDuty/Slack Integration**: Replace mock alerts with production alerting

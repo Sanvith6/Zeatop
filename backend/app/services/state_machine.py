@@ -39,7 +39,7 @@ class OpenState(IncidentState):
         elif new_state_name == "OPEN":
             return # Idempotent
         else:
-            raise InvalidTransitionError(f"Cannot move from OPEN to {new_state_name}")
+            raise InvalidTransitionError(f"Cannot transition from OPEN to {new_state_name}")
 
 
 class InvestigatingState(IncidentState):
@@ -49,7 +49,7 @@ class InvestigatingState(IncidentState):
         elif new_state_name == "INVESTIGATING":
             return # Idempotent
         else:
-            raise InvalidTransitionError(f"Cannot move from INVESTIGATING to {new_state_name}")
+            raise InvalidTransitionError(f"Cannot transition from INVESTIGATING to {new_state_name}")
 
 
 class ResolvedState(IncidentState):
@@ -61,14 +61,14 @@ class ResolvedState(IncidentState):
         elif new_state_name == "RESOLVED":
             return # Idempotent
         else:
-            raise InvalidTransitionError(f"Cannot move from RESOLVED to {new_state_name}")
+            raise InvalidTransitionError(f"Cannot transition from RESOLVED to {new_state_name}")
 
 
 class ClosedState(IncidentState):
     def transition(self, new_state_name: str) -> None:
         if new_state_name == "CLOSED":
             return # Idempotent
-        raise InvalidTransitionError("CLOSED is a terminal state")
+        raise InvalidTransitionError(f"Cannot transition from CLOSED to {new_state_name}")
 
 
 class WorkItemStateMachine:
