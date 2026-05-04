@@ -72,6 +72,13 @@ class RCARequest(BaseModel):
     fix_applied: str = Field(min_length=1)
     prevention_steps: str = Field(min_length=1)
 
+    @field_validator("fix_applied", "prevention_steps", mode="before")
+    @classmethod
+    def strip_whitespace(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
     @model_validator(mode="after")
     def validate_dates(self) -> "RCARequest":
         if self.incident_end <= self.incident_start:
