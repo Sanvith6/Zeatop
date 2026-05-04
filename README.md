@@ -98,13 +98,14 @@ python scripts/simulate_failure.py 2     # External dependency failures only
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| **Frontend Dashboard** | http://localhost:3001 | `sre-intern` / `zeotap-local` |
-| **Backend API** | http://localhost:8000 | JWT Bearer token |
-| **Prometheus** | http://localhost:9090 | — |
-| **Grafana** | http://localhost:3002 | `admin` / `admin` |
-| **Health Check** | http://localhost:8000/health | — |
-| **Readiness Check** | http://localhost:8000/ready | — |
-| **Prometheus Metrics** | http://localhost:8000/metrics | — |
+| **🚀 Frontend Dashboard** | [http://localhost:3001](http://localhost:3001) | `sre-intern` / `zeotap-local` |
+| **🛠️ Backend API** | [http://localhost:8000](http://localhost:8000) | JWT Bearer token |
+| **📖 API Documentation** | [http://localhost:8000/docs](http://localhost:8000/docs) | Swagger UI |
+| **📈 Prometheus** | [http://localhost:9090](http://localhost:9090) | — |
+| **📊 Grafana** | [http://localhost:3002](http://localhost:3002) | `admin` / `admin` |
+| **🏥 Health Check** | [http://localhost:8000/health](http://localhost:8000/health) | — |
+| **✅ Readiness Check** | [http://localhost:8000/ready](http://localhost:8000/ready) | — |
+| **📐 Metrics Endpoint** | [http://localhost:8000/metrics](http://localhost:8000/metrics) | — |
 
 ### Environment Variables
 
@@ -145,8 +146,22 @@ curl http://localhost:8000/ready
 ```
 
 ---
-
-## 5. Key Features (Mapped to Assignment Requirements)
+ 
+## 5. Repository Structure
+ 
+| Directory / File | Description |
+|-----------------|-------------|
+| `backend/app/services/state_machine.py` | **Core Logic**: GoF State Pattern implementation |
+| `backend/app/services/circuit_breaker.py` | **SRE Resilience**: Redis-backed distributed circuit breaker |
+| `backend/app/services/workitems.py` | **Debouncing Logic**: Signal consolidation & MTTR calculation |
+| `backend/app/routers/signals.py` | **Ingestion API**: High-throughput JWT-protected endpoint |
+| `scripts/simulate_failure.py` | **Simulation**: Consolidated scenario generator |
+| `docs/` | **Detailed Docs**: Architecture, RCA Flow, API Specs |
+| `frontend/` | **Dashboard**: React-based real-time observability UI |
+ 
+---
+ 
+## 6. Key Features (Mapped to Assignment Requirements)
 
 ### 5.1 High-Throughput Ingestion (10k+/sec)
 

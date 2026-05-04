@@ -125,12 +125,14 @@ docker-compose up --build
 ![Docker Compose Up](../screenshots/Dcokercompose-up.png)
 
 ### Service URLs
-
+ 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| Dashboard | http://localhost:3001 | sre-intern / zeotap-local |
-| API | http://localhost:8000 | JWT Bearer token |
-| Grafana | http://localhost:3002 | admin / admin |
+| **Frontend Dashboard** | [http://localhost:3001](http://localhost:3001) | `sre-intern` / `zeotap-local` |
+| **Backend API** | [http://localhost:8000](http://localhost:8000) | JWT Bearer token |
+| **API Documentation** | [http://localhost:8000/docs](http://localhost:8000/docs) | Swagger UI |
+| **Prometheus** | [http://localhost:9090](http://localhost:9090) | — |
+| **Grafana** | [http://localhost:3002](http://localhost:3002) | `admin` / `admin` |
 
 ---
 
