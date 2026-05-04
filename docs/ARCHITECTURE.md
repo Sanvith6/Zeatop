@@ -1,8 +1,8 @@
 # Zetatop Architectural Deep-Dive
 
-This document provides a Staff-Engineer level breakdown of the Zetatop Incident Management System, mapping the implementation to the mission-critical requirements defined in the [Engineering Assignment](file:///c:/project/Zetatop/Engineering_Assignment__Incident_Management_System.pdf).
+This document provides a Staff-Engineer level breakdown of the Zetatop Incident Management System, mapping the implementation to the mission-critical requirements defined in the [Engineering Assignment](../Engineering_Assignment__Incident_Management_System.pdf).
 
-![System Architecture](file:///c:/project/Zetatop/architecture_diagram/architecture_diagram.png)
+![System Architecture](../architecture_diagram/architecture_diagram.png)
 
 ---
 

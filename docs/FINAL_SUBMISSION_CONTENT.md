@@ -16,7 +16,9 @@ Zetatop solves this with a **decoupled Producer-Consumer architecture** that:
 - Provides AI-powered Root Cause Analysis via Groq (Llama 3.3)
 - Enforces structured incident lifecycle with mandatory RCA before closure
 - Maintains full observability through Prometheus/Grafana integration
-
+ 
+![System Architecture](../architecture_diagram/architecture_diagram.png)
+ 
 ---
 
 ## Architecture

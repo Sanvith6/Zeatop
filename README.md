@@ -78,6 +78,8 @@ graph TB
     end
 ```
 
+![System Architecture](architecture_diagram/architecture_diagram.png)
+
 ---
 
 ## 4. Setup Instructions
