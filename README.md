@@ -3,7 +3,7 @@
 [![SRE Principles](https://img.shields.io/badge/SRE-Safe--by--Design-blueviolet?style=for-the-badge)](https://sre.google/)
 [![AI-Powered](https://img.shields.io/badge/AI--Powered-Groq--Llama3-orange?style=for-the-badge)](https://groq.com/)
 [![Throughput](https://img.shields.io/badge/Throughput-10k%2B%20Signals%2Fsec-success?style=for-the-badge)]()
-[![Tests](https://img.shields.io/badge/Tests-40%20Passed-brightgreen?style=for-the-badge)]()
+[![Tests](https://img.shields.io/badge/Tests-47%20Passed-brightgreen?style=for-the-badge)]()
 [![CI](https://github.com/Sanvith6/zea/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanvith6/zea/actions)
 
 ---
@@ -293,7 +293,7 @@ Redis is configured with `maxmemory-policy noeviction` — it will never silentl
 
 ```bash
 pytest backend/tests
-# 40 passed in ~5s
+# 47 passed in ~5s
 ```
 
 ### Test Coverage
@@ -305,6 +305,8 @@ pytest backend/tests
 | API Integration | 12 | All endpoints, auth, error handling |
 | Circuit Breaker | 4 | State transitions, recovery, distributed coordination |
 | Debouncing | 4 | Window management, threshold, deduplication |
+| **RCA Validation** | **7** | **Date ranges, whitespace stripping, MTTR accuracy** |
+| **Total** | **47** | |
 
 ---
 

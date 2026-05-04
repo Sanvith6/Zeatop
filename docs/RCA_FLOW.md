@@ -60,8 +60,9 @@ RCA Table
 **File**: `backend/app/models/schemas.py:65-76`
 
 1. All fields are required (`min_length=1` on text fields)
-2. `incident_end` must be strictly after `incident_start`
-3. `root_cause_category` must be one of the 5 valid enum values
+2. **Whitespace Stripping**: Text fields (`fix_applied`, `prevention_steps`) are automatically stripped. Whitespace-only input is rejected.
+3. `incident_end` must be strictly after `incident_start`
+4. `root_cause_category` must be one of the 5 valid enum values
 
 ```python
 class RCARequest(BaseModel):
@@ -70,6 +71,13 @@ class RCARequest(BaseModel):
     root_cause_category: RootCauseCategory
     fix_applied: str = Field(min_length=1)
     prevention_steps: str = Field(min_length=1)
+
+    @field_validator("fix_applied", "prevention_steps", mode="before")
+    @classmethod
+    def strip_whitespace(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
     @model_validator(mode="after")
     def validate_dates(self) -> "RCARequest":

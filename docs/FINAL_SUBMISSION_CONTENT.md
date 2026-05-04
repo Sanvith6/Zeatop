@@ -154,12 +154,21 @@ Testing was performed using custom simulation scripts that send signals via HTTP
 
 ```bash
 pytest backend/tests -v
-# Result: 40 passed in ~5.5s
+# Result: 47 passed in ~5.5s
 ```
+
+| Test Suite | Tests | Coverage |
+|-----------|-------|---------|
+| State Machine | 12 | Valid transitions, blocking, RCA enforcement |
+| RCA Validation | 7 | Dates, whitespace stripping, MTTR accuracy |
+| Severity Classifier | 8 | Baseline, upgrade, no-downgrade |
+| Signal Ingestion | 8 | Payload validation, normalization |
+| API Integration | 12 | Endpoints, auth, error handling |
+| **Total** | **47** | |
 
 ### CI/CD Pipeline
 GitHub Actions runs on every push to `main` and `develop`:
-1. **Unit Tests** — Runs all 40 pytest tests.
+1. **Unit Tests** — Runs all 47 pytest tests.
 2. **Docker Validation** — Builds and health-checks all containers.
 
 ---
@@ -174,6 +183,8 @@ GitHub Actions runs on every push to `main` and `develop`:
 | Queue | Redis 7 (AOF) | Ingestion buffer + Debouncing |
 | AI | Groq (Llama 3.3) | Automated RCA suggestions |
 | Monitoring | Prom + Grafana | Metrics + Visualization |
+
+
 
 ---
 
