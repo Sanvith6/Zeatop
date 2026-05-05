@@ -10,20 +10,24 @@
 
 ## 🚀 Reviewer Quick Path (2 mins)
 
-1. Run system:
+1. Setup AI RCA (Required):
+   - Get a free key at [console.groq.com](https://console.groq.com/keys)
+   - Add it to `.env.example`: `GROQ_API_KEY=your_key`
+
+2. Run system:
    ```bash
    docker-compose up --build
    ```
 
-2. Simulate failure:
+3. Simulate failure:
    ```bash
    python scripts/simulate_failure.py
    ```
 
-3. Open dashboard:
+4. Open dashboard:
    [http://localhost:3001](http://localhost:3001)
 
-4. Observe:
+5. Observe:
    - Multiple signals → single incident
    - Real-time updates
    - Metrics in Grafana
