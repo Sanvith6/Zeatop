@@ -17,9 +17,7 @@ Zetatop solves this with a **decoupled Producer-Consumer architecture** that:
 - Enforces structured incident lifecycle with mandatory RCA before closure
 - Maintains full observability through Prometheus/Grafana integration
  
-<div align="center">
-  <img src="https://raw.githubusercontent.com/Sanvith6/Zeatop/main/architecture_diagram/architecture_diagram.png" width="85%" alt="System Architecture">
-</div>
+
 
 <div style="page-break-after: always;"></div>
  
