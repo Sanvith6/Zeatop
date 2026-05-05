@@ -31,6 +31,43 @@ Zetatop solves this with a **decoupled Producer-Consumer architecture** that:
   <img src="https://raw.githubusercontent.com/Sanvith6/Zeatop/main/architecture_diagram/architecture_diagram.png" width="85%" alt="System Architecture Detail">
 </div>
 
+```mermaid
+graph TB
+    subgraph Client Layer
+        A[React Dashboard] -->|WebSocket| F
+        B[Simulation Scripts] -->|HTTP POST| C
+    end
+
+    subgraph Ingestion Layer
+        C[FastAPI API] -->|JWT Auth| C
+        C -->|Rate Limit 10k/sec| C
+        C -->|Adaptive Throttling| C
+        C -->|LPUSH| D
+    end
+
+    subgraph Queue Layer
+        D[Redis Queue - AOF Persistent]
+    end
+
+    subgraph Processing Layer
+        D -->|BRPOPLPUSH| E[Background Workers x4]
+        E -->|Circuit Breaker| G[PostgreSQL]
+        E -->|Circuit Breaker| H[MongoDB]
+        E -->|Pub/Sub| F[WebSocket Manager]
+    end
+
+    subgraph Storage Layer
+        G[PostgreSQL - Incidents, RCA, Audit]
+        H[MongoDB - Raw Signals, DLQ]
+    end
+
+    subgraph Observability
+        I[Prometheus] -->|Scrape /metrics| C
+        I -->|Scrape /metrics| E
+        J[Grafana] -->|Query| I
+    end
+```
+
 <div style="page-break-after: always;"></div>
 
 ---
