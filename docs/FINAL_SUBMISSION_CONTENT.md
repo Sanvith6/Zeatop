@@ -71,6 +71,8 @@ Zetatop solves this with a **decoupled Producer-Consumer architecture** that:
 - **Visual Evidence**:
 <div align="center">
   <img src="https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/IMS-Dashboard.png" width="85%" alt="IMS Dashboard">
+  <br>
+  <img src="https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/Incident-details.png" width="85%" alt="Incident Details Audit Trail">
 </div>
 
 ### 5. Mandatory RCA with MTTR
@@ -79,6 +81,8 @@ Zetatop solves this with a **decoupled Producer-Consumer architecture** that:
 - **Visual Evidence**:
 <div align="center">
   <img src="https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/RCA-form.png" width="80%" alt="RCA Form">
+  <br>
+  <img src="https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/mttr_display.png" width="80%" alt="MTTR Calculation Display">
   <br>
   <img src="https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/Cannot-Close-incident-without-RCA-submission.png" width="80%" alt="RCA Enforcement">
 </div>
@@ -90,7 +94,9 @@ Zetatop solves this with a **decoupled Producer-Consumer architecture** that:
 - **Implementation**: Prometheus metrics (12 custom metrics), Grafana dashboards, and structured SRE log lines.
 - **Visual Evidence**:
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/Grafana_dashboard1.png" width="85%" alt="Grafana Dashboard">
+  <img src="https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/Grafana_dashboard1.png" width="85%" alt="Grafana Dashboard Overview">
+  <br>
+  <img src="https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/Grafana_dashboard2.png" width="85%" alt="Detailed Throughput Metrics">
   <br>
   <img src="https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/prometheus1.png" width="85%" alt="Prometheus Metrics">
 </div>
