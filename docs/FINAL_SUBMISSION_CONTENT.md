@@ -149,7 +149,7 @@ graph TB
 | **AI-Powered RCA** | Groq Llama 3.3 analyzes signals to auto-suggest root causes | ![RCA Form](https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/RCA-form.png) |
 | **Real-Time Updates** | WebSocket + Redis Pub/Sub for sub-150ms UI updates | ![WebSockets](https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/using_websockets.png) |
 | **Testing Suite** | 40 unit tests covering all edge cases | ![Pytest](https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/pytest.png) |
-| **Crash Recovery** | `BRPOPLPUSH` ensures zero signal loss during worker crashes | [View Architecture Diagram](https://raw.githubusercontent.com/Sanvith6/Zeatop/main/architecture_diagram/architecture_diagram.png) |
+| **Crash Recovery** | `BRPOPLPUSH` ensures zero signal loss during worker crashes | <img src="https://raw.githubusercontent.com/Sanvith6/Zeatop/main/architecture_diagram/architecture_diagram.png" width="300px" alt="Architecture Recovery Detail"> |
 | **Health Checks** | Deep health checks via `/ready` endpoint | ![Backend Health](https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/backend-health.png) |
 
 ---
