@@ -12,8 +12,8 @@
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/Sanvith6/zea.git
-   cd zea
+   git clone https://github.com/Sanvith6/Zeatop.git
+   cd Zeatop
    ```
 
 2. Setup AI RCA (Required for aiRCA feature):
@@ -157,8 +157,8 @@ graph TB
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/Sanvith6/zea.git
-cd zea
+git clone https://github.com/Sanvith6/Zeatop.git
+cd Zeatop
 
 # 2. Add your Groq API key to .env.example (for AI RCA)
 # Edit .env.example and set GROQ_API_KEY=your_key
