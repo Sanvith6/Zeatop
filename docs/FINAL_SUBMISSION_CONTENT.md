@@ -154,6 +154,25 @@ To demonstrate real-world operational readiness, here is a simulated incident li
 
 ---
 
+## Setup & Troubleshooting
+
+### Quick Start
+```bash
+docker compose up --build
+```
+
+#### ⚠️ Environment Updates & Clean Start
+If you are updating environment variables (like the **Groq API key**) or encountering "Port already in use" errors, use this clean-start sequence to ensure changes are applied:
+1. **Save changes** to `.env.example`.
+2. **Explicitly stop** all services:
+   ```bash
+   docker rm -f backend prometheus grafana frontend
+   docker compose down
+   ```
+3. **Rebuild & Run**: `docker compose up --build`
+
+---
+
 ## Load Test Results
 
 Testing was performed using custom simulation scripts that send signals via HTTP POST to the ingestion API.

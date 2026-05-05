@@ -123,6 +123,21 @@ Signal Source → POST /api/signals
 
 ## 4. Setup Instructions
 
+### ⚠️ Critical Setup Note: Clean Start
+If you are updating environment variables (like the **Groq API key**) or encountering port conflicts, follow this exact sequence to ensure a clean start:
+
+1.  **Edit `.env.example`**: Add your `GROQ_API_KEY` and **save the file**.
+2.  **Stop existing containers**:
+    ```bash
+    docker rm -f backend prometheus grafana frontend
+    docker compose down
+    ```
+3.  **Build and Run**:
+    ```bash
+    docker compose up --build
+    ```
+
+### Running the System
 ```bash
 docker compose up --build
 python scripts/simulate_failure.py
