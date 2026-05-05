@@ -140,3 +140,4 @@ marimo/_lsp/
 __marimo__/
 .streamlit/secrets.toml
 __pypackages__/
+scratch/

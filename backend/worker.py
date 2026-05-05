@@ -83,8 +83,6 @@ async def main():
         logger.info("Shutdown event triggered — stopping workers gracefully...")
     except asyncio.CancelledError:
         logger.info("Main task cancelled.")
-    except asyncio.CancelledError:
-        logger.info("Worker tasks cancelled.")
     finally:
         logger.info("Shutting down worker connections...")
         for task in workers:
