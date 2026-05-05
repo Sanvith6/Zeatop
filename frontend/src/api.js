@@ -2,22 +2,47 @@ const AUTH_STORAGE_KEY = "imsAccessToken";
 const DEMO_USERNAME = import.meta.env.VITE_DEMO_USERNAME || "sre-intern";
 const DEMO_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD || "zeotap-local";
 
+let authPromise = null;
+
 async function getAccessToken() {
   const cached = sessionStorage.getItem(AUTH_STORAGE_KEY);
   if (cached) {
     return cached;
   }
-  const response = await fetch("/api/auth/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: DEMO_USERNAME, password: DEMO_PASSWORD })
-  });
-  if (!response.ok) {
-    throw new Error("Unable to authenticate dashboard session");
+
+  // Deduplicate concurrent authentication requests
+  if (authPromise) {
+    return authPromise;
   }
-  const body = await response.json();
-  sessionStorage.setItem(AUTH_STORAGE_KEY, body.access_token);
-  return body.access_token;
+
+  authPromise = (async () => {
+    try {
+      const response = await fetch("/api/auth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: DEMO_USERNAME, password: DEMO_PASSWORD })
+      });
+      
+      if (!response.ok) {
+        let details = "";
+        try {
+          const body = await response.json();
+          details = body.detail || JSON.stringify(body);
+        } catch {
+          details = await response.text();
+        }
+        throw new Error(`Authentication failed (${response.status}): ${details}`);
+      }
+      
+      const body = await response.json();
+      sessionStorage.setItem(AUTH_STORAGE_KEY, body.access_token);
+      return body.access_token;
+    } finally {
+      authPromise = null;
+    }
+  })();
+
+  return authPromise;
 }
 
 export async function apiFetch(path, options = {}) {

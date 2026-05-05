@@ -23,10 +23,11 @@ class TokenResponse(BaseModel):
 
 
 def create_access_token(subject: str) -> TokenResponse:
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
-    payload = {"sub": subject, "exp": expires_at}
+    expires_delta = timedelta(minutes=settings.jwt_expire_minutes)
+    expires_at = datetime.now(timezone.utc) + expires_delta
+    payload = {"sub": subject, "exp": int(expires_at.timestamp())}
     token = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
-    return TokenResponse(access_token=token, expires_in=settings.jwt_expire_minutes * 60)
+    return TokenResponse(access_token=token, expires_in=int(expires_delta.total_seconds()))
 
 
 def authenticate(username: str, password: str) -> bool:

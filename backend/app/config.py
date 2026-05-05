@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     worker_batch_size: int = 500
     worker_batch_timeout: float = 1.0  # flush every 1 second regardless of size
 
-    model_config = SettingsConfigDict(env_file=(".env", ".env.example"), env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env.example", env_file_encoding="utf-8", extra="ignore")
 
     @property
     def cors_origin_list(self) -> list[str]:

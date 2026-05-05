@@ -56,30 +56,7 @@ services:
     env_file:
       - .env.example
     environment:
-      POSTGRES_DSN: postgresql+asyncpg://ims:ims_password@postgres:5432/ims
-      MONGO_DSN: mongodb://mongo:27017
-      MONGO_DB: ims
-      REDIS_URL: redis://redis:6379/0
-      QUEUE_MAX_SIZE: "10000"
-      REDIS_SIGNAL_QUEUE: signals:queue
-      REDIS_PROCESSING_QUEUE: signals:processing
-      WORKER_CONCURRENCY: "4"
-      RATE_LIMIT: "10000/second"
-      JWT_SECRET: local-compose-secret
-      JWT_EXPIRE_MINUTES: "60"
-      DEMO_USERNAME: sre-intern
-      DEMO_PASSWORD: zeotap-local
       CORS_ORIGINS: http://localhost:3005,http://frontend:3000
-      # Circuit breaker settings
-      CB_FAILURE_THRESHOLD: "5"
-      CB_RECOVERY_TIMEOUT: "30"
-      CB_HALF_OPEN_MAX_CALLS: "2"
-      # Database timeout
-      DB_CALL_TIMEOUT: "5"
-      # Backpressure thresholds
-      QUEUE_WARN_THRESHOLD: "0.5"
-      QUEUE_CRITICAL_THRESHOLD: "0.8"
-      ADAPTIVE_THROTTLE_THRESHOLD: "0.7"
     ports:
       - "8000:8000"
     volumes:
@@ -108,21 +85,7 @@ services:
     env_file:
       - .env.example
     environment:
-      POSTGRES_DSN: postgresql+asyncpg://ims:ims_password@postgres:5432/ims
-      MONGO_DSN: mongodb://mongo:27017
-      MONGO_DB: ims
-      REDIS_URL: redis://redis:6379/0
-      QUEUE_MAX_SIZE: "10000"
-      REDIS_SIGNAL_QUEUE: signals:queue
-      REDIS_PROCESSING_QUEUE: signals:processing
-      WORKER_CONCURRENCY: "4"
-      RATE_LIMIT: "10000/second"
-      JWT_SECRET: local-compose-secret
-      JWT_EXPIRE_MINUTES: "60"
       CORS_ORIGINS: http://localhost:3005,http://frontend:3000
-      CB_FAILURE_THRESHOLD: "5"
-      CB_RECOVERY_TIMEOUT: "30"
-      DB_CALL_TIMEOUT: "5"
     volumes:
       - ./backend:/app
     depends_on:
