@@ -154,6 +154,25 @@ python scripts/simulate_failure.py
 
 ---
 
+## 5. Observability Guide
+
+### 📊 How to View Grafana Dashboards
+1.  Open **Grafana**: [http://localhost:3002](http://localhost:3002)
+2.  **Login**: Use `admin` / `admin`.
+3.  **Navigate**: Click the **Menu** (top-left) → **Dashboards**.
+4.  **Open**: Select the **"Zeatop SRE Dashboard"**.
+5.  **View**: You will see real-time charts for Ingestion Rate, Queue Depth, and Worker Latency.
+
+### 📈 How to Query Prometheus
+1.  Open **Prometheus**: [http://localhost:9090](http://localhost:9090)
+2.  **Search**: In the search bar, type a metric name, for example:
+    - `ims_signals_ingested_total` (Total signals received)
+    - `ims_queue_depth` (Current signals waiting in Redis)
+    - `ims_signal_processing_seconds_sum` (Processing latency)
+3.  **Execute**: Click **"Execute"** and then select the **"Graph"** tab to see the visual trend.
+
+---
+
 ## 5. Load Test Results
 
 | Metric | Measured Value (Local) |

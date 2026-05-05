@@ -201,6 +201,23 @@ Testing was performed using custom simulation scripts that send signals via HTTP
 
 ---
 
+## Observability Guide
+
+### Grafana Dashboards
+- **URL**: [http://localhost:3002](http://localhost:3002) (Login: `admin`/`admin`)
+- **Access**: Go to **Menu** → **Dashboards** → **Zeatop SRE Dashboard**.
+- **Metrics**: Displays Ingestion Rate, Queue Health, and Worker Performance.
+
+### Prometheus Queries
+- **URL**: [http://localhost:9090](http://localhost:9090)
+- **Key Metrics**:
+    - `ims_signals_ingested_total`
+    - `ims_queue_depth`
+    - `ims_signal_processing_seconds_sum`
+- **Execute**: Enter a metric name in the search bar and click "Execute" to view real-time data.
+
+---
+
 ## GitHub Repository
 
 > **GitHub Repository**: [https://github.com/Sanvith6/Zeatop](https://github.com/Sanvith6/Zeatop)
