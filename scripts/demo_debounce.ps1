@@ -1,4 +1,4 @@
-# === Zetatop Debouncing Proof ===
+# === Zeatop Debouncing Proof ===
 # Sends 150 signals for the SAME component, then queries the API to prove only 1 incident was created.
 
 Write-Host ""

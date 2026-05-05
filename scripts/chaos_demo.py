@@ -45,7 +45,7 @@ def send_signal(token, component_id="db-server-01", component_type="rdbms"):
         return 500
 
 def main():
-    print("=== Zetatop Advanced Chaos Engineering Demo ===")
+    print("=== Zeatop Advanced Chaos Engineering Demo ===")
     print("Scenario: RDBMS Outage -> Recovery -> MCP Failure")
     
     token = get_token()

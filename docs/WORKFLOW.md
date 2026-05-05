@@ -2,7 +2,7 @@
 
 ## 1. Lifecycle Overview
 
-Every incident in Zetatop follows a strict, linear lifecycle enforced by a formal **State Pattern** implementation:
+Every incident in Zeatop follows a strict, linear lifecycle enforced by a formal **State Pattern** implementation:
 
 ```
   ┌──────────┐    Investigate     ┌───────────────┐    Mark Resolved    ┌──────────┐    Close (RCA required)    ┌────────┐

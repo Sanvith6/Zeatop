@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document captures the design thinking, iterative improvements, and engineering decisions that shaped the Zetatop Incident Management System from concept to production-grade platform.
+This document captures the design thinking, iterative improvements, and engineering decisions that shaped the Zeatop Incident Management System from concept to production-grade platform.
 
 ---
 

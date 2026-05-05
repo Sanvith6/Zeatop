@@ -1,4 +1,4 @@
-# 🛡️ Zetatop: Production-Grade Incident Management System
+# 🛡️ Zeatop: Production-Grade Incident Management System
 
 [![SRE Principles](https://img.shields.io/badge/SRE-Safe--by--Design-blueviolet?style=for-the-badge)](https://sre.google/)
 [![AI-Powered](https://img.shields.io/badge/AI--Powered-Groq--Llama3-orange?style=for-the-badge)](https://groq.com/)
@@ -79,13 +79,13 @@ Simulated a database outage generating 150+ signals in seconds:
 
 ## 1. Project Overview
 
-Zetatop is a high-availability **Incident Management System (IMS)** built for SRE environments that generate massive volumes of monitoring signals during failures.
+Zeatop is a high-availability **Incident Management System (IMS)** built for SRE environments that generate massive volumes of monitoring signals during failures.
 
 ### Problem
 A single database outage can produce **10,000+ error signals** in seconds. Without intelligent deduplication, each signal creates a separate alert, overwhelming on-call engineers with noise and obscuring the actual incident.
 
 ### Solution
-Zetatop implements a **decoupled Producer-Consumer architecture** that:
+Zeatop implements a **decoupled Producer-Consumer architecture** that:
 - Accepts signals at **~1,000/sec** on local dev hardware (Tested @ 928 req/s)
 - **Debounces** hundreds of signals into a single actionable incident (99%+ noise reduction)
 - Provides **AI-powered Root Cause Analysis** via Groq (Llama 3.3 70B)
@@ -385,7 +385,7 @@ Redis is configured with `maxmemory-policy noeviction` — it will never silentl
 
 ## 9. Testing
 
-Zetatop includes a comprehensive test suite covering the state machine, signal ingestion logic, and API endpoints.
+Zeatop includes a comprehensive test suite covering the state machine, signal ingestion logic, and API endpoints.
 
 ### Running Tests
 

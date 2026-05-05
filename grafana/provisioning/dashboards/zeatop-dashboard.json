@@ -458,7 +458,7 @@
   "style": "dark",
   "tags": [
     "sre",
-    "zetatop",
+    "zeatop",
     "premium"
   ],
   "templating": {
@@ -470,7 +470,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Zetatop SRE Dashboard",
-  "uid": "zetatop-sre",
+  "title": "Zeatop SRE Dashboard",
+  "uid": "zeatop-sre",
   "version": 1
 }

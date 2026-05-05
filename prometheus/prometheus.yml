@@ -2,11 +2,11 @@ global:
   scrape_interval: 5s
 
 scrape_configs:
-  - job_name: "zetatop-backend"
+  - job_name: "zeatop-backend"
     metrics_path: /metrics
     static_configs:
       - targets: ["backend:8000"]
 
-  - job_name: "zetatop-worker"
+  - job_name: "zeatop-worker"
     static_configs:
       - targets: ["worker:8001"]

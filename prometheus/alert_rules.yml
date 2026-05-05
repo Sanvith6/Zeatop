@@ -1,5 +1,5 @@
 groups:
-  - name: zetatop_alerts
+  - name: zeatop_alerts
     rules:
       # --- Saturation Alerts ---
       - alert: IngestionQueueSaturated

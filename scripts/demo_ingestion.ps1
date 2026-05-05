@@ -1,4 +1,4 @@
-# === Zetatop Signal Ingestion Demo ===
+# === Zeatop Signal Ingestion Demo ===
 
 Write-Host ""
 Write-Host "=== Step 1: JWT Token Obtained ===" -ForegroundColor Green

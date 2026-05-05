@@ -15,7 +15,7 @@ export default function App() {
       <header className="topbar">
         <Link className="brand" to="/">
           <Activity size={24} />
-          <span>Zetatop SRE</span>
+          <span>Zeatop SRE</span>
         </Link>
         <div className="status-indicator">
           <div className="pulse-dot"></div>

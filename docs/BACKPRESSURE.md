@@ -2,7 +2,7 @@
 
 ## Overview
 
-Backpressure is the system's ability to gracefully degrade under load instead of crashing. Zetatop implements a **four-tier backpressure strategy** that progressively restricts ingestion as the system approaches capacity.
+Backpressure is the system's ability to gracefully degrade under load instead of crashing. Zeatop implements a **four-tier backpressure strategy** that progressively restricts ingestion as the system approaches capacity.
 
 ---
 

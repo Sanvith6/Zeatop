@@ -1,6 +1,6 @@
-# Zetatop SRE Playbook 🛡️
+# Zeatop SRE Playbook 🛡️
 
-This playbook outlines the standard operating procedures (SOPs) for responding to incidents within the Zetatop Incident Management System.
+This playbook outlines the standard operating procedures (SOPs) for responding to incidents within the Zeatop Incident Management System.
 
 ## 1. Incident Lifecycle States
 
@@ -49,4 +49,4 @@ Every P0/P1 incident **must** have a completed RCA before it can be moved to the
 Leverage the **AI Suggest** tool in the RCA form for rapid analysis of complex signal patterns. The AI uses Groq (Llama 3) to correlate multiple error messages across components.
 
 ---
-*Created by Zetatop SRE Team*
+*Created by Zeatop SRE Team*

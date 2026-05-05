@@ -1,8 +1,8 @@
-# Zetatop IMS — Final Submission (Sanvith JS)
+# Zeatop IMS — Final Submission (Sanvith JS)
 
 ## Project Overview
 
-**Zetatop** is a production-grade Incident Management System (IMS) built for high-availability SRE environments. It ingests thousands of monitoring signals per second, intelligently debounces them into actionable incidents, and manages the full incident lifecycle from detection to closure with mandatory Root Cause Analysis.
+**Zeatop** is a production-grade Incident Management System (IMS) built for high-availability SRE environments. It ingests thousands of monitoring signals per second, intelligently debounces them into actionable incidents, and manages the full incident lifecycle from detection to closure with mandatory Root Cause Analysis.
 
 ### Problem Statement
 
@@ -10,7 +10,7 @@ Modern infrastructure generates massive volumes of monitoring signals during fai
 
 ### Solution
 
-Zetatop solves this with a **decoupled Producer-Consumer architecture** that:
+Zeatop solves this with a **decoupled Producer-Consumer architecture** that:
 - Accepts signals at 10,000+/sec without blocking
 - Debounces hundreds of signals into a single actionable incident
 - Provides AI-powered Root Cause Analysis via Groq (Llama 3.3)

@@ -1,6 +1,6 @@
-# Zetatop Architectural Deep-Dive
+# Zeatop Architectural Deep-Dive
 
-This document provides a Staff-Engineer level breakdown of the Zetatop Incident Management System, mapping the implementation to the mission-critical requirements defined in the [Engineering Assignment](../Engineering_Assignment__Incident_Management_System.pdf).
+This document provides a Staff-Engineer level breakdown of the Zeatop Incident Management System, mapping the implementation to the mission-critical requirements defined in the [Engineering Assignment](../Engineering_Assignment__Incident_Management_System.pdf).
 
 ![System Architecture](../architecture_diagram/architecture_diagram.png)
 
@@ -16,7 +16,7 @@ The system is designed to handle **10,000 signals/second** without impacting ser
 
 ## 2. Intelligence & Noise Reduction (The Buffer)
 
-A naive system would create 10,000 incidents for 10,000 signals. Zetatop implements **Distributed Debouncing**:
+A naive system would create 10,000 incidents for 10,000 signals. Zeatop implements **Distributed Debouncing**:
 
 *   **10s Sliding Window**: Signals for the same `component_id` are grouped within a 10-second sliding window in Redis.
 *   **Threshold Trigger**: Only after 100 signals arrive (or a manual override) is a formal **Work Item** created in PostgreSQL.
@@ -24,7 +24,7 @@ A naive system would create 10,000 incidents for 10,000 signals. Zetatop impleme
 
 ## 3. Polyglot Storage Strategy (The Persistence)
 
-Zetatop uses the **"Right Tool for the Right Data"** philosophy:
+Zeatop uses the **"Right Tool for the Right Data"** philosophy:
 
 *   **MongoDB (The Data Lake)**: Handles high-volume, unstructured error payloads. Used for the "Raw Signals" audit log.
 *   **PostgreSQL (Source of Truth)**: Manages Work Items, State Transitions, and RCA records. Every status update is wrapped in an **ACID transaction**.
