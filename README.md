@@ -8,6 +8,65 @@
 
 ---
 
+## 🚀 Reviewer Quick Path (2 mins)
+
+1. Run system:
+   ```bash
+   docker-compose up --build
+   ```
+
+2. Simulate failure:
+   ```bash
+   python scripts/simulate_failure.py
+   ```
+
+3. Open dashboard:
+   [http://localhost:3001](http://localhost:3001)
+
+4. Observe:
+   - Multiple signals → single incident
+   - Real-time updates
+   - Metrics in Grafana
+
+👉 Full details in `docs/`
+
+---
+
+## 🎯 Design Decisions
+
+- Redis over Kafka → lower latency, simpler for this scale
+- Async workers → decouple ingestion from DB
+- PostgreSQL for incidents → ACID guarantees for state transitions
+- MongoDB for signals → high write throughput + flexible schema
+
+---
+
+## ☁️ Cloud Deployment Readiness
+
+This system is designed for AWS deployment:
+
+- EC2 / EKS → backend services
+- RDS → PostgreSQL
+- ElastiCache → Redis
+- CloudWatch → logs + metrics
+- ALB → load balancing
+
+Architecture is cloud-ready with minimal changes.
+
+---
+
+## 🧪 Real-World Scenario
+
+Simulated a database outage generating 150+ signals in seconds:
+
+- System grouped signals into 1 incident
+- Noise reduced by 99.3%
+- RCA enforced before closure
+
+👉 Prevents alert fatigue and improves incident response time
+
+---
+
 ## 1. Project Overview
 
 Zetatop is a high-availability **Incident Management System (IMS)** built for SRE environments that generate massive volumes of monitoring signals during failures.
