@@ -8,11 +8,11 @@ This document provides a Staff-Engineer level breakdown of the Zeatop Incident M
 
 ## 1. Ingestion & Burst Resilience (The Producer)
 
-The system is designed to handle **10,000 signals/second** without impacting service availability. This is achieved through three layers of backpressure management:
+The system is designed to handle **10,000 signals/second** without impacting service availability. This is achieved through a multi-tier backpressure and decoupling strategy:
 
+*   **Async Decoupling (Impact)**: The API performs zero database I/O during ingestion. It executes a sub-10ms Redis `LPUSH` and returns `202 Accepted` immediately. **This ensures ingestion never blocks even during DB slowdown, preventing cascading failures under burst traffic.**
 *   **Rate Limiting**: Per-IP throttling via `slowapi` prevents malicious or runaway producers from saturating the API.
-*   **Adaptive Throttling**: The API monitors the Redis queue depth. At **70% capacity**, it triggers a `429 Too Many Requests` with a `Retry-After` header, signaling producers to slow down before a total system failure.
-*   **Async Decoupling**: The API does zero database I/O during ingestion. It performs a sub-10ms `LPUSH` to Redis and returns a `202 Accepted` immediately.
+*   **Adaptive Throttling**: The API monitors Redis queue depth. At **70% capacity**, it triggers a `429 Too Many Requests` with a `Retry-After` header, signaling producers to slow down before the system reaches saturation.
 
 ## 2. Intelligence & Noise Reduction (The Buffer)
 
@@ -37,10 +37,10 @@ Zeatop uses the **"Right Tool for the Right Data"** philosophy:
 
 The system is "Safe-by-Design," implementing several mission-critical patterns:
 
-*   **Circuit Breaker**: MongoDB and PostgreSQL connections are wrapped in a **Circuit Breaker**. If a database becomes slow or unresponsive, the worker "fails fast" and stops attempting writes, preventing a cascading failure of the worker pool.
-*   **State Pattern**: The incident lifecycle (`OPEN` → `INVESTIGATING` → `RESOLVED` → `CLOSED`) is managed by a strict **State Machine**. Transitions are validated against business rules (e.g., Cannot close without an RCA).
-*   **Strategy Pattern**: Alerting logic is decoupled. The system automatically swaps between `P0_AlertStrategy` (for RDBMS) and `P2_AlertStrategy` (for Caches) based on component classification.
 *   **At-Least-Once Delivery**: Using the `BRPOPLPUSH` pattern, signals are never "popped" and lost. They are atomically moved to a "Processing" list and only removed once successfully persisted.
+*   **Design Pattern: State Pattern**: The incident lifecycle (`OPEN` → `INVESTIGATING` → `RESOLVED` → `CLOSED`) is managed by a strict **State Machine**. This ensures consistent lifecycle management and enforces business rules (e.g., Cannot close without an RCA).
+*   **Design Pattern: Strategy Pattern**: Alerting logic is decoupled. The system automatically swaps between `P0_AlertStrategy` (for RDBMS) and `P2_AlertStrategy` (for Caches) based on component classification, allowing for flexible escalation policies.
+*   **Circuit Breaker**: MongoDB and PostgreSQL connections are wrapped in a **Circuit Breaker**. If a database becomes slow or unresponsive, the worker "fails fast," preventing a cascading failure of the worker pool.
 
 ## 5. Observability (The Golden Signals)
 
