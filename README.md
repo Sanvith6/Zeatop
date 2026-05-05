@@ -31,7 +31,7 @@
    ```
 
 5. Open dashboard:
-   [http://localhost:3001](http://localhost:3001)
+   [http://localhost:3005](http://localhost:3005)
 
 6. Observe:
    - Multiple signals → single incident
@@ -173,11 +173,28 @@ python scripts/simulate_failure.py       # Runs all scenarios
 python scripts/load_test.py
 ```
 
+### ⚠️ Port Conflicts
+
+If ports are already in use, you may encounter a port conflict error when running `docker compose up`.
+
+**Note:** Internal services (PostgreSQL, MongoDB, Redis) are **not exposed to the host network**. This avoids conflicts with local databases. Internal services communicate via Docker network using service names (e.g., `postgres:5432`, `redis:6379`). This also improves security by preventing direct host access to internal services.
+
+For the exposed services (frontend, backend, grafana, prometheus), if ports are already in use:
+- Stop existing containers/services, or
+- Adjust the host port mapping in `docker-compose.yml`
+
+Example:
+```yaml
+frontend:
+  ports:
+    - "3005:3000" # Maps host port 3005 to container port 3000
+```
+
 ### Service URLs
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| **🚀 Frontend Dashboard** | [http://localhost:3001](http://localhost:3001) | `sre-intern` / `zeotap-local` |
+| **🚀 Frontend Dashboard** | [http://localhost:3005](http://localhost:3005) | `sre-intern` / `zeotap-local` |
 | **🛠️ Backend API** | [http://localhost:8000](http://localhost:8000) | JWT Bearer token |
 | **📖 API Documentation** | [http://localhost:8000/docs](http://localhost:8000/docs) | Swagger UI |
 | **📈 Prometheus** | [http://localhost:9090](http://localhost:9090) | — |

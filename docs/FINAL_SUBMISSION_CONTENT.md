@@ -162,7 +162,7 @@ docker-compose up --build
  
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| **Frontend Dashboard** | [http://localhost:3001](http://localhost:3001) | `sre-intern` / `zeotap-local` |
+| **Frontend Dashboard** | [http://localhost:3005](http://localhost:3005) | `sre-intern` / `zeotap-local` |
 | **Backend API** | [http://localhost:8000](http://localhost:8000) | JWT Bearer token |
 | **API Documentation** | [http://localhost:8000/docs](http://localhost:8000/docs) | Swagger UI |
 | **Prometheus** | [http://localhost:9090](http://localhost:9090) | — |
