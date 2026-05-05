@@ -17,48 +17,21 @@ Zetatop solves this with a **decoupled Producer-Consumer architecture** that:
 - Enforces structured incident lifecycle with mandatory RCA before closure
 - Maintains full observability through Prometheus/Grafana integration
  
-![System Architecture](../architecture_diagram/architecture_diagram.png)
+<div align="center">
+  <img src="../architecture_diagram/architecture_diagram.png" width="85%" alt="System Architecture">
+</div>
+
+<div style="page-break-after: always;"></div>
  
 ---
 
 ## Architecture
 
-```mermaid
-graph TB
-    subgraph Client Layer
-        A[React Dashboard] -->|WebSocket| F
-        B[Simulation Scripts] -->|HTTP POST| C
-    end
+<div align="center">
+  <img src="../architecture_diagram/architecture_diagram.png" width="85%" alt="System Architecture Detail">
+</div>
 
-    subgraph Ingestion Layer
-        C[FastAPI API] -->|JWT Auth| C
-        C -->|Rate Limit 10k/sec| C
-        C -->|Adaptive Throttling| C
-        C -->|LPUSH| D
-    end
-
-    subgraph Queue Layer
-        D[Redis Queue - AOF Persistent]
-    end
-
-    subgraph Processing Layer
-        D -->|BRPOPLPUSH| E[Background Workers x4]
-        E -->|Circuit Breaker| G[PostgreSQL]
-        E -->|Circuit Breaker| H[MongoDB]
-        E -->|Pub/Sub| F[WebSocket Manager]
-    end
-
-    subgraph Storage Layer
-        G[PostgreSQL - Incidents, RCA, Audit]
-        H[MongoDB - Raw Signals, DLQ]
-    end
-
-    subgraph Observability
-        I[Prometheus] -->|Scrape /metrics| C
-        I -->|Scrape /metrics| E
-        J[Grafana] -->|Query| I
-    end
-```
+<div style="page-break-after: always;"></div>
 
 ---
 
@@ -69,40 +42,60 @@ graph TB
 - **Implementation**: Redis LPUSH with sub-millisecond latency, decoupled from database writes.
 - **Proof**: 10,000 signals/sec sustained in load testing.
 - **Visual Evidence**:
-![Signal Ingestion — POST request with JWT auth → 202 Accepted + event_id](../screenshots/Signal%20Ingestion%20(Backend%20Proof).png)
+<div align="center">
+  <img src="../screenshots/Signal Ingestion (Backend Proof).png" width="85%" alt="Signal Ingestion">
+</div>
 
 ### 2. Intelligent Debouncing
 - **Requirement**: Consolidate duplicate signals into single incidents.
 - **Implementation**: Redis Sorted Set sliding window (10s). After 100 signals for the same component, ONE incident is created.
 - **Proof**: 150 DB_PRIMARY_01 signals → 1 incident (**99.3% noise reduction**).
 - **Visual Evidence**:
-![Debouncing Logic — 150 signals consolidated into 1 incident](../screenshots/Debouncing%20Logic.png)
+<div align="center">
+  <img src="../screenshots/Debouncing Logic.png" width="85%" alt="Debouncing Logic">
+</div>
 
 ### 3. Async Processing Pipeline
 - **Requirement**: Non-blocking signal processing.
 - **Implementation**: Fully async stack (asyncpg, motor, redis.asyncio). Workers process batches of 500 signals with 1s flush timeout.
 - **Visual Evidence**:
-![Structured Metrics Logs — Batch processing and flush times in logs](../screenshots/metrics.png)
+<div align="center">
+  <img src="../screenshots/metrics.png" width="85%" alt="Processing Metrics">
+</div>
+
+<div style="page-break-after: always;"></div>
 
 ### 4. State Machine Workflow
 - **Requirement**: Structured incident lifecycle.
 - **Implementation**: GoF State Pattern with 4 states, idempotent same-state transitions, and strict forward-only progression.
 - **Visual Evidence**:
-![IMS Dashboard — Active incidents showing current status and severity](../screenshots/IMS-Dashboard.png)
+<div align="center">
+  <img src="../screenshots/IMS-Dashboard.png" width="85%" alt="IMS Dashboard">
+</div>
 
 ### 5. Mandatory RCA with MTTR
 - **Requirement**: Root cause analysis enforcement.
 - **Implementation**: State machine blocks CLOSED transition without complete RCA. MTTR = `incident_end - incident_start`.
 - **Visual Evidence**:
-![RCA Form — AI-powered suggestions auto-fill the analysis](../screenshots/RCA-form.png)
-![RCA Enforcement — System rejects closure without RCA (HTTP 409)](../screenshots/Cannot-Close-incident-without-RCA-submission.png)
+<div align="center">
+  <img src="../screenshots/RCA-form.png" width="80%" alt="RCA Form">
+  <br>
+  <img src="../screenshots/Cannot-Close-incident-without-RCA-submission.png" width="80%" alt="RCA Enforcement">
+</div>
+
+<div style="page-break-after: always;"></div>
 
 ### 6. Observability
 - **Requirement**: System health monitoring.
 - **Implementation**: Prometheus metrics (12 custom metrics), Grafana dashboards, and structured SRE log lines.
 - **Visual Evidence**:
-![Grafana Dashboard — Ingestion vs Processing Rate and Queue Depth](../screenshots/Grafana_dashboard1.png)
-![Prometheus — Custom metrics being scraped in real-time](../screenshots/prometheus1.png)
+<div align="center">
+  <img src="../screenshots/Grafana_dashboard1.png" width="85%" alt="Grafana Dashboard">
+  <br>
+  <img src="../screenshots/prometheus1.png" width="85%" alt="Prometheus Metrics">
+</div>
+
+<div style="page-break-after: always;"></div>
 
 ---
 
