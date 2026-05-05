@@ -1,6 +1,5 @@
 # 🛡️ Zeatop: Production-Grade Incident Management System
 
-**GitHub Repository**: [https://github.com/Sanvith6/Zeatop](https://github.com/Sanvith6/Zeatop)
 
 [![SRE Principles](https://img.shields.io/badge/SRE-Safe--by--Design-blueviolet?style=for-the-badge)](https://sre.google/)
 [![AI-Powered](https://img.shields.io/badge/AI--Powered-Groq--Llama3-orange?style=for-the-badge)](https://groq.com/)
