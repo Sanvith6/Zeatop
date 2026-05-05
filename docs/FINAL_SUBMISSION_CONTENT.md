@@ -187,7 +187,7 @@ GitHub Actions runs on every push to `main` and `develop`:
 
 ## GitHub Repository
 
-> **GitHub Repository**: https://github.com/Sanvith6/zea
+> **GitHub Repository**: https://github.com/Sanvith6/Zeatop
 
 ---
  

@@ -4,7 +4,7 @@
 [![AI-Powered](https://img.shields.io/badge/AI--Powered-Groq--Llama3-orange?style=for-the-badge)](https://groq.com/)
 [![Throughput](https://img.shields.io/badge/Throughput-900+%20Signals%2Fsec-success?style=for-the-badge)]()
 [![Tests](https://img.shields.io/badge/Tests-47%20Passed-brightgreen?style=for-the-badge)]()
-[![CI](https://github.com/Sanvith6/zea/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanvith6/zea/actions)
+[![CI](https://github.com/Sanvith6/Zeatop/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanvith6/Zeatop/actions)
 
 ---
 
