@@ -158,6 +158,14 @@ docker-compose up --build
 ```
 ![Docker Compose Up](https://raw.githubusercontent.com/Sanvith6/Zeatop/main/screenshots/Dcokercompose-up.png)
 
+#### ⚠️ Troubleshooting Port Conflicts
+If you see a "Port already in use" or "Bad Gateway" error, run this to reset the network stack:
+```bash
+docker rm -f backend prometheus grafana
+docker-compose down
+docker-compose up --build
+```
+
 ### Service URLs
  
 | Service | URL | Credentials |

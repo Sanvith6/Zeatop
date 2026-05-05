@@ -173,22 +173,30 @@ python scripts/simulate_failure.py       # Runs all scenarios
 python scripts/load_test.py
 ```
 
-### ⚠️ Port Conflicts
+### ⚠️ Port Conflicts & Lingering Containers
 
-If ports are already in use, you may encounter a port conflict error when running `docker compose up`.
+If ports are already in use, you may encounter a "port conflict" error or a "Bad Gateway" error in the frontend.
 
-**Note:** Internal services (PostgreSQL, MongoDB, Redis) are **not exposed to the host network**. This avoids conflicts with local databases. Internal services communicate via Docker network using service names (e.g., `postgres:5432`, `redis:6379`). This also improves security by preventing direct host access to internal services.
+**Common Conflict Resolution:**
+If you previously ran the project under a different name or if a previous instance didn't shut down cleanly:
+1. **Stop conflicting containers**:
+   ```bash
+   docker rm -f backend prometheus grafana
+   ```
+2. **Stop all project services**:
+   ```bash
+   docker compose down
+   ```
+3. **Restart cleanly**:
+   ```bash
+   docker compose up --build
+   ```
 
-For the exposed services (frontend, backend, grafana, prometheus), if ports are already in use:
-- Stop existing containers/services, or
-- Adjust the host port mapping in `docker-compose.yml`
+**Why this happens:**
+The `backend`, `prometheus`, and `grafana` services use fixed container names. If an old container with the same name exists in a different Docker network, the new services won't be able to bind to their ports or communicate correctly. Stopping these specific containers ensures the networking stack is reset.
 
-Example:
-```yaml
-frontend:
-  ports:
-    - "3005:3000" # Maps host port 3005 to container port 3000
-```
+**Note on Internal Services:**
+Internal services (PostgreSQL, MongoDB, Redis) are **not exposed to the host network**. They communicate via the internal Docker network using service names (e.g., `postgres:5432`). This prevents host-level port conflicts for databases and improves security.
 
 ### Service URLs
 

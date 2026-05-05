@@ -134,6 +134,11 @@ async def submit_rca(work_item_id: uuid.UUID, payload: RCARequest) -> dict[str, 
                     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot submit RCA for a closed work item")
                 incident_start = payload.incident_start.astimezone(timezone.utc).replace(tzinfo=None)
                 incident_end = payload.incident_end.astimezone(timezone.utc).replace(tzinfo=None)
+                if incident_end < incident_start:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Incident end time cannot be before start time"
+                    )
                 # Requirement 3.3: MTTR based on incident_start and incident_end
                 mttr_minutes = (incident_end - incident_start).total_seconds() / 60
                 rca = RCA(

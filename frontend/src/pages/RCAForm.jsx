@@ -23,13 +23,31 @@ export default function RCAForm() {
   const [isFallback, setIsFallback] = useState(false);
 
   useEffect(() => {
-    getWorkItem(id).then(setIncident).catch((err) => setError(err.message));
+    getWorkItem(id).then((data) => {
+      setIncident(data);
+      // Pre-fill times if not already set
+      if (data.created_at) {
+        const start = new Date(data.created_at);
+        const end = new Date(start.getTime() + 30 * 60000); // Default to +30 mins
+        
+        // format to YYYY-MM-DDTHH:mm for datetime-local
+        const format = (d) => d.toISOString().slice(0, 16);
+        
+        setForm(current => ({
+          ...current,
+          incident_start: current.incident_start || format(start),
+          incident_end: current.incident_end || format(end)
+        }));
+      }
+    }).catch((err) => setError(err.message));
   }, [id]);
 
   function update(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
     // Clear field error when user starts typing
-    if (fieldErrors[field]) {
+    if (field === "incident_start" || field === "incident_end") {
+      setFieldErrors((current) => ({ ...current, incident_start: "", incident_end: "" }));
+    } else if (fieldErrors[field]) {
       setFieldErrors((current) => ({ ...current, [field]: "" }));
     }
   }
@@ -76,6 +94,8 @@ export default function RCAForm() {
     return Object.keys(errors).length === 0;
   }
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   async function onSubmit(event) {
     event.preventDefault();
     setError("");
@@ -83,6 +103,7 @@ export default function RCAForm() {
     
     if (!validate()) return;
 
+    setIsSubmitting(true);
     try {
       const payload = {
         ...form,
@@ -93,6 +114,8 @@ export default function RCAForm() {
       navigate(`/incident/${id}`);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -164,7 +187,10 @@ export default function RCAForm() {
           {fieldErrors.prevention_steps && <span className="error-text">{fieldErrors.prevention_steps}</span>}
         </label>
 
-        <button className="primary-button" type="submit">Submit RCA</button>
+        <button className="primary-button" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : null}
+          {isSubmitting ? " Submitting..." : "Submit RCA"}
+        </button>
       </form>
     </section>
   );

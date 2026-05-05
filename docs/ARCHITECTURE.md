@@ -49,3 +49,15 @@ Monitoring is built-in, not bolted-on:
 *   **Latency**: End-to-end processing time tracked in Prometheus Histograms.
 *   **Saturation**: Real-time monitoring of Redis queue depth.
 *   **Errors**: Dedicated counters for DLQ (Dead Letter Queue) entries and circuit breaker trips.
+
+## 6. Conflict Resolution & Container Management
+
+To ensure reliable operation across different environments and prevent networking "ghost" issues:
+
+*   **Fixed Container Names**: Services like `backend`, `prometheus`, and `grafana` use fixed names to simplify external access and monitoring.
+*   **Conflict Prevention**: If a build fails or you see a "Bad Gateway," it is often due to a lingering container from a previous project name (e.g., `zeatop` vs `zea`).
+*   **Resolution Strategy**: Always ensure conflicting containers are removed before a major re-build:
+    ```bash
+    docker rm -f backend prometheus grafana
+    ```
+*   **Internal Isolation**: By not exposing databases (Postgres/Mongo/Redis) to the host, we prevent conflicts with local developer tools while maintaining a strict "Zero Trust" internal networking model.
