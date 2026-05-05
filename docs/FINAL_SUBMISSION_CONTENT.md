@@ -19,8 +19,6 @@ Zetatop solves this with a **decoupled Producer-Consumer architecture** that:
  
 
 
-<div style="page-break-after: always;"></div>
- 
 ---
 
 ## Architecture
