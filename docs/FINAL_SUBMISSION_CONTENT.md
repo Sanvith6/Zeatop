@@ -138,7 +138,7 @@ graph TB
 
 ---
 
-## Bonus Features (Shortlist Boosters)
+## Bonus Features 
 
 | Feature | Description | Visual Proof |
 |---------|-------------|--------------|

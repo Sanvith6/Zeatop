@@ -10,24 +10,30 @@
 
 ## 🚀 Reviewer Quick Path (2 mins)
 
-1. Setup AI RCA (Required):
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Sanvith6/zea.git
+   cd zea
+   ```
+
+2. Setup AI RCA (Required for aiRCA feature):
    - Get a free key at [console.groq.com](https://console.groq.com/keys)
    - Add it to `.env.example`: `GROQ_API_KEY=your_key`
 
-2. Run system:
+3. Run system:
    ```bash
-   docker-compose up --build
+   docker compose up --build
    ```
 
-3. Simulate failure:
+4. Simulate failure:
    ```bash
    python scripts/simulate_failure.py
    ```
 
-4. Open dashboard:
+5. Open dashboard:
    [http://localhost:3001](http://localhost:3001)
 
-5. Observe:
+6. Observe:
    - Multiple signals → single incident
    - Real-time updates
    - Metrics in Grafana
@@ -150,13 +156,20 @@ graph TB
 ### Quick Start
 
 ```bash
-# Clone and start all services
-docker-compose up --build
+# 1. Clone the repository
+git clone https://github.com/Sanvith6/zea.git
+cd zea
 
-# Generate sample incidents (in a separate terminal)
+# 2. Add your Groq API key to .env.example (for AI RCA)
+# Edit .env.example and set GROQ_API_KEY=your_key
+
+# 3. Start all services
+docker compose up --build
+
+# 4. Generate sample incidents (in a separate terminal)
 python scripts/simulate_failure.py       # Runs all scenarios
  
-# Run empirical load test (verify 1,000+ req/s)
+# 5. Run empirical load test (verify 1,000+ req/s)
 python scripts/load_test.py
 ```
 
